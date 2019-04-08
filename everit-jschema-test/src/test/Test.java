@@ -13,20 +13,21 @@ public class Test
 {
 	public static void main(String[] args){
 		String jschRoot = "src/test/";
-		SchemaLoader schemaLoader = SchemaLoader.builder()
-						.schemaClient(SchemaClient.classPathAwareClient())
-						.resolutionScope("classpath://" + jschRoot)
-						.build();
-
 		InputStream inStream = Test.class
 						.getClassLoader()
 						.getResourceAsStream(jschRoot + "/schema.json");
 
 		JSONObject rawSchema = new JSONObject( new JSONTokener(inStream) );
-		Schema schema = schemaLoader.load(rawSchema);
 
-		String jstrToValidate = "{\"a\": 1}";
+		SchemaLoader schemaLoader = SchemaLoader.builder()
+				.schemaClient(SchemaClient.classPathAwareClient())
+				.resolutionScope("classpath://" + jschRoot)
+				.schemaJson(rawSchema)
+				.build();
 
+		Schema schema = schemaLoader.load().build();
+
+		String jstrToValidate = "{\"a\": \"aa\"}";
 		schema.validate( new JSONObject(jstrToValidate) );
 	}
 }
