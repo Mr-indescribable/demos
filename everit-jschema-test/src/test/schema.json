@@ -1,6 +1,6 @@
 {
 	"type" : "object",
 	"properties" : {
-		"something" : {"$ref" : "predefined.json" }
+		"something" : {"$ref" : "classpath://src/test/predefined.json" }
 	}
 }
