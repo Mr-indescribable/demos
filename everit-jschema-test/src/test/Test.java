@@ -1,4 +1,4 @@
-package com.test;
+package src.test;
 
 import java.io.InputStream;
 
@@ -11,8 +11,8 @@ import org.json.JSONTokener;
 
 public class Test
 {
-	public static void main(String[] args) {
-		String jschRoot = "com/test/";
+	public static void main(String[] args){
+		String jschRoot = "src/test/";
 		SchemaLoader schemaLoader = SchemaLoader.builder()
 						.schemaClient(SchemaClient.classPathAwareClient())
 						.resolutionScope("classpath://" + jschRoot)

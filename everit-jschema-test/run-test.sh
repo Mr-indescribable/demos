@@ -4,4 +4,4 @@
 export CLASSPATH=".:./lib/*"
 
 javac @jresrouce
-java com.test.Test
+java src.test.Test
