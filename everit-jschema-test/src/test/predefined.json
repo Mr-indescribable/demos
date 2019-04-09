@@ -1,4 +1,5 @@
 {
-	"type": "integer",
-	"requiresInteger": true
+	"type": "number",
+	"requiresInteger": true,
+	"nullable": false
 }

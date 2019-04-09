@@ -27,7 +27,7 @@ public class Test
 
 		Schema schema = schemaLoader.load().build();
 
-		String jstrToValidate = "{\"a\": \"aa\"}";
+		String jstrToValidate = "{\"b\": 1}";
 		schema.validate( new JSONObject(jstrToValidate) );
 	}
 }
