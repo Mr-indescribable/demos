@@ -180,9 +180,15 @@ class ConnectionManager():
     #     }
     SHM_KEY_TMP_CONNS = 'ConnectionManager-%d_Conns'
 
-    def __init__(self, config):
+    def __init__(self, config, iv_len=None):
+        ''' Constructor
+
+        :param config: the config
+        :param iv_len: override config.net.crypto.iv_len
+        '''
+
         self.config = config
-        self.iv_len = self.config.net.crypto.iv_len
+        self.iv_len = iv_len or self.config.net.crypto.iv_len
         self.iv_duration_range = self.config.net.crypto.iv_duration_range
 
         if not 0 < self.iv_len < EVP_MAX_IV_LENGTH:
@@ -432,4 +438,8 @@ class ConnectionManager():
         native_info = self._get_native_conn_info(remote)
         native_info[slot] = None
 
-        self.shm_mgr.update_dict(remote_name, native_info)
+        self.shm_mgr.update_dict(
+            key=self.shm_key_conns,
+            dict_key=remote_name,
+            value=native_info,
+        )
