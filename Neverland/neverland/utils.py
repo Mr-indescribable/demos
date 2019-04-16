@@ -152,6 +152,16 @@ class Converter():
         hex_number = s.format(num)
         return f'0x{hex_number}'
 
+    @classmethod
+    def sa_2_str(cls, sa):
+        ''' convert a socket address into a string
+
+        :param sa: socket address in tuple format: (ip, port)
+        :returns: "ip:port"
+        '''
+
+        return f'{sa[0]}:{sa[1]}'
+
 
 class _BaseEnum():
 

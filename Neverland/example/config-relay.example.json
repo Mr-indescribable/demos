@@ -17,6 +17,7 @@
 			"password": "INDESCRIBABLE",
 			"cipher": "aes-256-gcm",
 			"salt_len": 8,
+			"iv_len": 12,
 			"iv_duration_range": [1000, 2000]
 		}
 	},

@@ -25,6 +25,9 @@ Currently, it's not used.
 '''
 
 
+logger = logging.getLogger('Crypto')
+
+
 EVP_MAX_KEY_LENGTH = 64
 EVP_MAX_IV_LENGTH = 16
 
@@ -50,10 +53,13 @@ def load_libcrypto(libpath='libcrypto.so.1.1'):
         ]
 
         lib_loaded = True
-        logging.info('Successfully loaded crypto library from {libpath}')
+        logger.info(f'Successfully loaded crypto library from {libpath}')
 
 
 def new_cipher_ctx(cipher_name, key, iv, mod):
+    ''' create a new EVP cipher context
+    '''
+
     if libcrypto is None:
         raise Exception('libcrypto is not loaded, cannot init cipher')
 
@@ -83,19 +89,33 @@ class OpenSSLCryptor(object):
         'aes-256-gcm',
         'chacha20',
         'chacha20-poly1305',
-        'idea-cfb',
-        'idea-ofb',
-        'rc4',
-        'rc4-40',
-        'rc4-hmac-md5',
     ]
+    key_len_mapping = {
+        'aes-128-cfb': 16,
+        'aes-192-cfb': 24,
+        'aes-256-cfb': 32,
+        'aes-128-ofb': 16,
+        'aes-192-ofb': 24,
+        'aes-256-ofb': 34,
+        'aes-128-gcm': 16,
+        'aes-192-gcm': 24,
+        'aes-256-gcm': 32,
+        'chacha20': 32,
+        'chacha20-poly1305': 32,
+    }
 
-    def __init__(self, config, mode):
+    def __init__(self, config, mode, key=None, iv=None):
         ''' Constructor
 
         :param config: the config
         :param mode: mod argument for EVP_CipherInit_ex. 0 or 1,
                      0 means decrypting and 1 means encrypting,
+        :param key: the crypto key which will be used in encryption and
+                    decryption, if it's not provided, then the default key
+                    derived from the password will be used
+        :param iv: the IV used in encryption and decryption, if it's not
+                   provided, then the default iv derived from the
+                   identification string will be used
         '''
 
         self.config = config
@@ -106,14 +126,16 @@ class OpenSSLCryptor(object):
         if self._mod not in Modes:
             raise ArgumentError(f'Invalid mode: {mode}')
 
+        self.__identification = self.config.net.identification
         self.__passwd = self.config.net.crypto.password
         self._iv_len = self.config.net.crypto.iv_len
+        self._key_len = self.key_len_mapping.get(self.cipher_name)
 
         if self._iv_len > EVP_MAX_IV_LENGTH:
             raise ArgumentError('IV length overflows')
 
-        self._key = HashTools.hkdf(self.__passwd, EVP_MAX_KEY_LENGTH)
-        self._iv = HashTools.hdivdf(self.__passwd, self._iv_len)
+        self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
+        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
 
         if self.cipher_name not in self.supported_ciphers:
             raise ArgumentError(f'Unsupported cipher name: {self.cipher_name}')
@@ -126,6 +148,9 @@ class OpenSSLCryptor(object):
         )
 
     def update(self, data):
+        ''' do encryption or decryption
+        '''
+
         in_ = c_char_p(data)
         inl = len(data)
         buf_size = self.buf_size if self.buf_size >= inl else inl * 2

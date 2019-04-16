@@ -14,9 +14,9 @@ from neverland.protocol.crypto.kc.base import BaseKernelCryptor
 ''' The KC GCM Crypto Module
 
 Supported algorithms:
-    aes-128-gcm
-    aes-192-gcm
-    aes-256-gcm
+    kc-aes-128-gcm
+    kc-aes-192-gcm
+    kc-aes-256-gcm
 
 Linux kernel >= 4.9 is required
 '''

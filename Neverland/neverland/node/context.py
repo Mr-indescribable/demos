@@ -6,8 +6,7 @@ class NodeContext():
 
     ''' Node context container
 
-    The global context container for the Node class.
-    Simply, we can just store the context info in the class' attributes.
+    The global context container.
     '''
 
     # pid of the worker
@@ -36,3 +35,41 @@ class NodeContext():
 
     # The packet manager instance
     pkt_mgr = None
+
+    # The connection manager instance
+    conn_mgr = None
+
+    # The cryptor_stash is used to store cryptors of managed connections.
+    # The entity of a connection only contains the necessary information
+    # of the connection, so that all worker processes could share it.
+    #
+    # And for using the connection, we need to instantiate a Cryptor for
+    # the connection. And then, this cryptor object will stored here. It will
+    # be a part of the connection, once the connection has been removed, it
+    # shall be removed too.
+    #
+    # Here is the inner data structure if cryptor_stash:
+    #
+    #     {
+    #         "default_cryptor": the cryptor with the default iv,
+    #
+    #         "remote_ip_0:port": {
+    #             "main_cryptor": main_cryptor,
+    #             "fallback_cryptor": fallback_cryptor,
+    #         }
+    #
+    #         "remote_ip_1:port": {
+    #             "main_cryptor": main_cryptor,
+    #             "fallback_cryptor": fallback_cryptor,
+    #         }
+    #     }
+    #
+    # We will keep 2 connections for each remote node in connection management.
+    # And here, we shall keep 2 cryptors for each remote node as well. And we
+    # name the cryptor object belongs to the connection in Slot-1 as
+    # "main cryptor" and the cryptor object belongs to the connection
+    # in Slot-0 as "fallback cryptor".
+    #
+    # The Cryptor with the default iv is provided as well,
+    # but it does not belong to any connection.
+    cryptor_stash = dict()

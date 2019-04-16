@@ -63,7 +63,7 @@ class BasePktFormat():
     in Python 3.6 and becomes a ture feature in Python 3.7. So this also means
     earlier versions (< 3.6) of Python interpreters will not be supported.
 
-    And we also need define the __type__ attribute, it describes the type of
+    And we also need to define the __type__ attribute, it describes the type of
     the packet format definition. The value should be choosed from pkt.PktTypes
     '''
 

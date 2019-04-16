@@ -41,6 +41,7 @@ from neverland.components.pktmgmt import (
     SpecialPacketManager,
     SpecialPacketRepeater,
 )
+from neverland.components.connmgmt import ConnectionManager
 
 
 logger = logging.getLogger('Node')
@@ -324,6 +325,8 @@ class BaseNode():
 
         self.pkt_mgr = SpecialPacketManager(self.config)
 
+        self.conn_mgr = ConnectionManager(self.config)
+
         # The packet repeater is a part of the packet manager, so we will
         # use it as a normal module. Each worker shall have it's own packet
         # repeater but not share it like the shared memory manager worker
@@ -335,6 +338,8 @@ class BaseNode():
         self.core.self_allocate_core_id()
 
         self.pkt_mgr.init_shm()
+
+        self.conn_mgr.init_shm()
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} loaded modules')
@@ -360,6 +365,7 @@ class BaseNode():
         self.logic_handler = None
         self.core = None
         self.pkt_mgr = None
+        self.conn_mgr = None
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} cleaned modules')
@@ -375,7 +381,7 @@ class BaseNode():
         NodeContext.main_efferent = self.efferent
         NodeContext.protocol_wrapper = self.protocol_wrapper
         NodeContext.pkt_mgr = self.pkt_mgr
-
+        NodeContext.conn_mgr = self.conn_mgr
         NodeContext.id_generator = IDGenerator(self.node_id, self.core.core_id)
 
         pid = os.getpid()
@@ -383,12 +389,14 @@ class BaseNode():
 
     def _clean_context(self):
         NodeContext.pkt_rpter_pid = None
-        NodeContext.id_generator = None
         NodeContext.local_ip = None
         NodeContext.listen_port = None
         NodeContext.core = None
         NodeContext.main_efferent = None
         NodeContext.protocol_wrapper = None
+        NodeContext.pkt_mgr = None
+        NodeContext.conn_mgr = None
+        NodeContext.id_generator = None
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} cleaned NodeContext')

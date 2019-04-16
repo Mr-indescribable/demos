@@ -15,6 +15,9 @@ class PktTypes(metaclass=MetaEnum):
     # Connection controlling packets, used in managing connections from other nodes
     CONN_CTRL = 0x03
 
+    # ACK of Connection controlling packets
+    CONN_CTRL_ACK = 0x04
+
 
 class FieldTypes(metaclass=MetaEnum):
 

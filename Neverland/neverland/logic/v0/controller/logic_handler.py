@@ -76,12 +76,9 @@ class ControllerLogicHandler(BaseLogicHandler):
         )
 
     def _gen_resp_pkt(self, content, dest):
-        src = (NodeContext.local_ip, NodeContext.core.main_afferent.listen_port)
-
         resp_pkt = UDPPacket()
         resp_pkt.fields = ObjectifiedDict(
                               type=PktTypes.CTRL,
-                              src=src,
                               dest=dest,
                               subject=CCSubjects.RESPONSE,
                               content=content,

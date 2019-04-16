@@ -23,6 +23,7 @@ MAIN_LOG_LOGGERS = [
     'Efferent',
     'Logic',
     'PktMgr',
+    'Crypto',
 ]
 
 

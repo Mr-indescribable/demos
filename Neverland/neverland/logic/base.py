@@ -39,6 +39,8 @@ class BaseLogicHandler():
             return self.handle_ctrl(pkt)
         elif pkt.fields.type == PktTypes.CONN_CTRL:
             return self.handle_conn_ctrl
+        elif pkt.fields.type == PktTypes.CONN_CTRL_ACK:
+            return self.handle_conn_ctrl
         else:
             raise DropPacket
 
@@ -52,4 +54,8 @@ class BaseLogicHandler():
 
     def handle_conn_ctrl(self, pkt):
         ''' handle packets with type flag 0x03 CONN_CTRL
+        '''
+
+    def handle_conn_ctrl_ack(self, pkt):
+        ''' handle packets with type flag 0x04 CONN_CTRL_ACK
         '''

@@ -34,7 +34,7 @@ tsum_crypto = 0
 
 
 # Test case for OpenSSL cryptors
-class IDGTest(unittest.TestCase):
+class OpenSSLTest(unittest.TestCase):
 
     def test_0_openssl(self):
         global tsum_urandom, tsum_crypto

@@ -32,7 +32,7 @@ tsum_crypto = 0
 
 
 # Test case for kernel cryptors
-class IDGTest(unittest.TestCase):
+class KCTest(unittest.TestCase):
 
     def test_0_gcm(self):
         global tsum_urandom, tsum_crypto

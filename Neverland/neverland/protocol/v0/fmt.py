@@ -58,11 +58,11 @@ class HeaderFormat(BasePktFormat):
 
             # Each UDP packet shall have a serial number as its identifier.
             'sn': FieldDefinition(
-                          length        = 8,
-                          type          = FieldTypes.STRUCT_U_LONG_LONG,
-                          calculator    = sn_calculator,
-                          calc_priority = 0x00,
-                      ),
+                      length        = 8,
+                      type          = FieldTypes.STRUCT_U_LONG_LONG,
+                      calculator    = sn_calculator,
+                      calc_priority = 0x00,
+                  ),
 
             # The timestamp of the creation of the packet
             'time': FieldDefinition(
@@ -72,7 +72,11 @@ class HeaderFormat(BasePktFormat):
                         calc_priority = 0x00,
                     ),
 
-            # Packet type, 0x01 for data packets and 0x02 for controlling pkts
+            # Packet type,
+            # 0x01 for data packets,
+            # 0x02 for controlling packets,
+            # 0x03 for connection controlling packets
+            # 0x04 for connection controlling ACK
             'type': FieldDefinition(
                         length = 1,
                         type   = FieldTypes.STRUCT_U_CHAR,
@@ -160,14 +164,16 @@ class ConnCtrlPktFormat(BasePktFormat):
     def gen_fmt(cls, config):
         cls.__fmt__ = {
             # The flag of whether a node want to keep communicating with
-            # another node. 0x01 for Ture and 0x02 for False
+            # another node. 0x01 for Ture and 0x00 for False
+            #
+            # Actually, communicating == 0x00 means "disconnecting".
             'communicating': FieldDefinition(
                                  length = 1,
                                  type   = FieldTypes.STRUCT_U_CHAR,
                              ),
 
             # The flag of whether the iv should be changed
-            # 0x01 for Ture and 0x02 for False
+            # 0x01 for Ture and 0x00 for False
             'iv_changed': FieldDefinition(
                               length = 1,
                               type   = FieldTypes.STRUCT_U_CHAR,
@@ -184,4 +190,23 @@ class ConnCtrlPktFormat(BasePktFormat):
                       length = config.net.crypto.iv_len or 8,
                       type   = FieldTypes.PY_BYTES,
                   ),
+        }
+
+
+class ConnCtrlAckPktFormat(BasePktFormat):
+
+    ''' The format of connection controlling ACK packets' body
+    '''
+
+    __type__ = PktTypes.CONN_CTRL_ACK
+
+    @classmethod
+    def gen_fmt(cls, config):
+        cls.__fmt__ = {
+            # The serial number of the received CONN_CTRL packet
+            'resp_sn': FieldDefinition(
+                           length     = 8,
+                           type       = FieldTypes.STRUCT_U_LONG_LONG,
+                           calculator = sn_calculator,
+                       ),
         }

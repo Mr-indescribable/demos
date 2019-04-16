@@ -12,7 +12,7 @@ from neverland.protocol.crypto.mode import Modes
 
 ''' The kernel crypto module
 
-Linux kernel >= 4.9 is required
+By default, Linux kernel >= 4.9 is required
 '''
 
 
@@ -62,23 +62,33 @@ class BaseKernelCryptor():
             f'{KERNEL_MOJOR_VERSION}.{KERNEL_MINOR_VERSION} is required.'
         )
 
-    def __init__(self, config, mode):
+    def __init__(self, config, mode, key=None, iv=None):
         ''' Constructor
 
         :param config: the config
         :param mode: the working mod of the cryptor,
                     0 to decrypting and 1 to encrypting
+        :param key: the crypto key which will be used in encryption and
+                    decryption, if it's not provided, then the default key
+                    derived from the password will be used
+        :param iv: the IV used in encryption and decryption, if it's not
+                   provided, then the default iv derived from the
+                   identification string will be used
         '''
 
         self.config = config
+        self._mode = mode
 
         self.cipher_name = self.config.net.crypto.cipher
         self.__identification = self.config.net.identification
         self.__passwd = self.config.net.crypto.password
-        self._mode = mode
 
         self.prepare()
         self.checkup()
+
+        self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
+        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
+
         self.init_cryptor()
 
     def prepare(self):
@@ -135,9 +145,6 @@ class BaseKernelCryptor():
             self._op = socket.ALG_OP_DECRYPT
         else:
             raise ArgumentError(f'Invalid mod: {self._mode}')
-
-        self._key = HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = HashTools.hdivdf(self.__identification, self._iv_len)
 
         self.alg_sock = self.create_alg_sock()
         self.alg_conn, _ = self.alg_sock.accept()
