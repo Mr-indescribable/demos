@@ -44,10 +44,22 @@ simply solve the security problem by using the permission mechanism of Linux.
 
 
 The protocol of communication:
-    The choice of transport layer protocol is UDP. UDP is much easier to handle
-    than TCP, and in the case of local communication, UDP is reliable (because
-    we don't need to keep UDP packets in-sequence, and it's nearly impossible
-    to loss a UDP packet in local communication).
+    The choice of transport layer protocol is UDP.
+
+    Here are 2 reasons for choosing UDP:
+
+        1. Using UDP will apply a limitation to the Neverland cluster.
+           When the cluster is too big, a part of packets will exceed
+           the max size of UDP packet (65507 bytes) and then some node
+           will crash. This can prevent users from building a big Neverland
+           cluster. I'm really afraid that a big cluster could make
+           "some organization" get noticed by something which they could
+           never hear about and in this case some people will in danger.
+
+        2. UDP is much easier to handle than TCP, and in the case of local
+           communication, UDP is reliable (because we don't need to keep UDP
+           packets in-sequence, and it's nearly impossible to loss a UDP
+           packet in local communication).
 
     And because of the feature of the UDP Unix domain socket, we cannot
     simply send back responses through the socket. So we need do a fake
