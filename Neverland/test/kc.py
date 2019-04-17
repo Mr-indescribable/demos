@@ -44,7 +44,7 @@ class KCTest(unittest.TestCase):
         cipher_name = config.net.crypto.cipher
 
         print(
-            f'Running {times} times of {cipher_name} cipher testing with data '
+            f'Running {times} times of {cipher_name} cipher test with data '
             f'block size {bs}. \nTotal: {total_mb} MB\n'
         )
 

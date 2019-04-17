@@ -57,7 +57,7 @@ class CryptorTest(unittest.TestCase):
         cipher_name = kc_config.net.crypto.cipher
 
         print(
-            f'Running {times} times of {cipher_name} cipher testing '
+            f'Running {times} times of {cipher_name} cipher test '
             f'with data block size {bs}. \nTotal: {total_mb} MB\n'
         )
 
@@ -93,7 +93,7 @@ class CryptorTest(unittest.TestCase):
         cipher_name = openssl_config.net.crypto.cipher
 
         print(
-            f'\n\nRunning {times} times of {cipher_name} cipher testing '
+            f'\n\nRunning {times} times of {cipher_name} cipher test '
             f'with data block size {bs}. \nTotal: {total_mb} MB\n'
         )
 
