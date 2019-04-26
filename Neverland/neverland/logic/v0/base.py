@@ -173,4 +173,4 @@ class BaseLogicHandler(_BaseLogicHandler):
         if responding_sn is None:
             raise DropPacket
 
-        pkt = NodeContext.pkt_mgr.get_pkt(responding_sn)
+        original_pkt = NodeContext.pkt_mgr.get_pkt(responding_sn)

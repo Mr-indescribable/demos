@@ -203,7 +203,7 @@ class ConnCtrlAckPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls, config):
         cls.__fmt__ = {
-            # The serial number of the received CONN_CTRL packet
+            # The serial number of the received (at remote) CONN_CTRL packet
             'resp_sn': FieldDefinition(
                            length     = 8,
                            type       = FieldTypes.STRUCT_U_LONG_LONG,

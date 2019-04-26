@@ -12,7 +12,8 @@ class PktTypes(metaclass=MetaEnum):
     # Cluster controlling packets, used in communicating with the controller node
     CTRL = 0x02
 
-    # Connection controlling packets, used in managing connections from other nodes
+    # Connection controlling packets,
+    # used in managing connections between other nodes
     CONN_CTRL = 0x03
 
     # ACK of Connection controlling packets

@@ -44,6 +44,9 @@ class BaseLogicHandler():
         else:
             raise DropPacket
 
+    def cancel_repeat(self, sn):
+        NodeContext.pkt_mgr.cancel_repeat(sn)
+
     def handle_data(self, pkt):
         ''' handle packets with type flag 0x01 DATA
         '''
