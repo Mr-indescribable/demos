@@ -121,7 +121,7 @@ class SpecialPacketManager():
     def close_shm(self):
         self.shm_mgr.disconnect()
 
-    def store_pkt(self, pkt, need_repeat=False, max_rpt_times=5):
+    def store_pkt(self, pkt, need_repeat=False, max_rpt_times=5, repeat_native_data=True):
         sn = pkt.fields.sn
         type_ = pkt.fields.type
 
@@ -282,6 +282,7 @@ class SpecialPacketRepeater():
         self,
         config,
         efferent,
+        pkt_mgr,
         protocol_wrapper,
         interval_args=(0.5, 1),
     ):
@@ -289,6 +290,7 @@ class SpecialPacketRepeater():
 
         :param config: the config instance
         :param efferent: an instance of the Efferents
+        :param pkt_mgr: an instance of SpecialPacketManager
         :param protocol_wrapper: an instance of ProtocolWrappers
         :param interval_args: a pair of number in tuple or list format
                               that will be used in random.uniform to
@@ -299,15 +301,9 @@ class SpecialPacketRepeater():
         self.config = config
         self.interval_args = interval_args
 
-        self.pkt_mgr = SpecialPacketManager(config)
         self.efferent = efferent
+        self.pkt_mgr = pkt_mgr
         self.protocol_wrapper = protocol_wrapper
-
-    def init_shm(self):
-        self.pkt_mgr.init_shm()
-
-    def close_shm(self):
-        self.pkt_mgr.close_shm()
 
     def shutdown(self):
         self.__running = False
@@ -348,8 +344,8 @@ class SpecialPacketRepeater():
                 pkt = self.pkt_mgr.get_pkt(sn)
 
                 if pkt is None:
-                    # packet removed in the interval of these 2 times of shared
-                    # memory request, so we just need to skip
+                    # packet has been removed in the interval of these 2 times
+                    # of shared memory request, we just need to skip it
                     #
                     # Maybe we need to invoke remove_pkt here again to ensure
                     # that this serial number has been removed?
@@ -378,5 +374,4 @@ class SpecialPacketRepeater():
             #logger.debug(f'SpecialPacketRepeater is going to sleep {s} sec.')
             time.sleep(s)
 
-        self.pkt_mgr.close_shm()
         logger.info(f'SpecialPacketRepeater worker {pid} exits')

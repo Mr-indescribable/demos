@@ -16,7 +16,7 @@ from neverland.exceptions import (
 from neverland.pkt import UDPPacket, PktTypes
 from neverland.utils import ObjectifiedDict, MetaEnum
 from neverland.node.context import NodeContext
-from neverland.components.shm import SharedMemoryManager
+from neverland.components.shm import SharedMemoryManager, SHMContainerTypes
 from neverland.protocol.crypto.openssl import EVP_MAX_IV_LENGTH
 
 
@@ -260,7 +260,7 @@ class ConnectionManager():
 
         self.shm_key_conn_update_time = self.SHM_KEY_TMP_CONN_UPDATE_TIME % self.pid
         self.shm_mgr.create_key_and_ignore_conflict(
-            self.shm_key_update_time,
+            self.shm_key_conn_update_time,
             SHMContainerTypes.DICT,
         )
 

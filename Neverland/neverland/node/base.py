@@ -258,7 +258,7 @@ class BaseNode():
             self.shm_worker_pid = pid
             logger.info(f'Started SharedMemoryManager: {pid}')
 
-    def _start_pkt_rpter(self):
+    def _start_pkt_rpter(self, pkt_mgr):
         '''
         The Repeater needs some components from the node,
         so we shouldn't use this method before components are initialized
@@ -272,11 +272,11 @@ class BaseNode():
             self.pkt_rpter = SpecialPacketRepeater(
                                  self.config,
                                  self.efferent,
+                                 pkt_mgr,
                                  self.protocol_wrapper,
                              )
 
             try:
-                self.pkt_rpter.init_shm()
                 self.pkt_rpter.run()
             except Exception:
                 err_msg = traceback.format_exc()
@@ -291,12 +291,15 @@ class BaseNode():
             self.pkt_rpter = SpecialPacketRepeater(
                                  self.config,
                                  self.efferent,
+                                 pkt_mgr,
                                  self.protocol_wrapper,
                              )
             self.pkt_rpter_worker_pid = pid
             logger.info(f'Started SpecialPacketRepeater: {pid}')
 
     def _load_modules(self):
+        logger.debug('Node._load_modules')
+
         self.afferent_cls = AFFERENT_MAPPING[self.role]
         self.main_afferent = self.afferent_cls(self.config)
 
@@ -312,6 +315,7 @@ class BaseNode():
 
         self.logic_handler_cls = LOGIC_HANDLER_MAPPING[self.role]
         self.logic_handler = self.logic_handler_cls(self.config)
+        self.logic_handler.init_shm()
 
         self.core_cls = CORE_MAPPING.get(self.role)
         self.core = self.core_cls(
@@ -322,29 +326,26 @@ class BaseNode():
                         logic_handler=self.logic_handler,
                         protocol_wrapper=self.protocol_wrapper,
                     )
+        self.core.init_shm()
+        self.core.self_allocate_core_id()
 
         self.pkt_mgr = SpecialPacketManager(self.config)
+        self.pkt_mgr.init_shm()
 
         self.conn_mgr = ConnectionManager(self.config)
+        self.conn_mgr.init_shm()
 
         # The packet repeater is a part of the packet manager, so we will
         # use it as a normal module. Each worker shall have it's own packet
         # repeater but not share it like the shared memory manager worker
-        self._start_pkt_rpter()
-
-        self.logic_handler.init_shm()
-
-        self.core.init_shm()
-        self.core.self_allocate_core_id()
-
-        self.pkt_mgr.init_shm()
-
-        self.conn_mgr.init_shm()
+        self._start_pkt_rpter(self.pkt_mgr)
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} loaded modules')
 
     def _clean_modules(self):
+        logger.debug('Node._clean_modules')
+
         self._kill(self.pkt_rpter_worker_pid)
         os.waitpid(self.pkt_rpter_worker_pid, 0)
         logger.debug(
