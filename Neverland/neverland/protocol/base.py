@@ -8,15 +8,19 @@ import struct
 
 from neverland.pkt import UDPPacket, PktTypes, FieldTypes
 from neverland.utils import (
+    Converter,
     HashTools,
     ObjectifiedDict,
     get_localhost_ip,
 )
+from neverland.components.connmgmt import SLOT_0, SLOT_1, SLOT_2
 from neverland.node.context import NodeContext
+from neverland.protocol.crypto import Cryptor
 from neverland.exceptions import (
     PktWrappingError,
     PktUnwrappingError,
     InvalidPkt,
+    DecryptionFailed,
 )
 
 
@@ -106,77 +110,18 @@ class ComplexedFormat(BasePktFormat):
     Sometimes, we will need to combine the header format and the body format.
     '''
 
+    def __init__(self):
+        self.__fmt__ = dict()
+
     def combine_fmt(self, fmt_cls):
-        ''' combine a new packet format class
+        ''' Combine a new packet format class into the existing fields.
+
+        Fields in fmt_cls will be added after the existing fields.
 
         Works like dict.update
         '''
 
         self.__fmt__.update(fmt_cls.__fmt__)
-
-
-def src_calculator(pkt, header_fmt, body_fmt):
-    ''' calculator for the src field
-    '''
-
-    return (NodeContext.local_ip, NodeContext.listen_port)
-
-
-def sn_calculator(pkt, header_fmt, body_fmt):
-    ''' calculator for the serial number field
-    '''
-
-    id_generator = NodeContext.id_generator
-    if id_generator is None:
-        raise RuntimeError(
-            'Node modules are not ready to generate packet serial numbers'
-        )
-
-    return id_generator.gen()
-
-
-def salt_calculator(pkt, header_fmt, body_fmt):
-    ''' calculator for the salt field
-    '''
-
-    salt_definition = header_fmt.__fmt__.get('salt')
-    salt_len = salt_definition.length
-    return os.urandom(salt_len)
-
-
-def mac_calculator(pkt, header_fmt, body_fmt):
-    ''' calculator for calculating the mac field
-
-    Rule of the mac calculating:
-        Generally, salt field and mac field are always at the first and the second
-        field in the packet header. So, by default our packets will look like:
-
-            <salt> <mac> <other_fields>
-
-        Here I define the default rule of mac calculating as this:
-
-            SHA256( <salt> + <other_fields> )
-    '''
-
-    data_2_hash = pkt.byte_fields.salt
-
-    for field_name, definition in header_fmt.__fmt__.items():
-        if field_name in ('salt', 'mac'):
-            continue
-
-        byte_value = getattr(pkt.byte_fields, field_name)
-        data_2_hash += byte_value
-
-    return HashTools.sha256(data_2_hash)
-
-
-def time_calculator(*_):
-    ''' calculator for the time field
-    '''
-
-    return int(
-        time.time() * 1000000
-    )
 
 
 class BaseProtocolWrapper():
@@ -222,35 +167,32 @@ class BaseProtocolWrapper():
         self.conn_ctrl_pkt_fmt.gen_fmt(config)
 
         self._body_fmt_mapping = {
-            'header': self.header_fmt,
             PktTypes.DATA: self.data_pkt_fmt,
             PktTypes.CTRL: self.ctrl_pkt_fmt,
             PktTypes.CONN_CTRL: self.conn_ctrl_pkt_fmt,
         }
 
-        # used by self.make_udp_pkt
-        self.complexed_fmt_cache = dict()
+        self.complexed_fmt_mapping = dict()
+        for fmt_type, body_fmt in self._body_fmt_mapping.items():
+            fmt = ComplexedFormat()
+            fmt.combine_fmt(self.header_fmt)
+            fmt.combine_fmt(body_fmt)
+            fmt.sort_calculators()
+
+            self.complexed_fmt_mapping.update(
+                {fmt_type: fmt}
+            )
 
     def wrap(self, pkt):
         ''' make a valid Neverland UDP packet
+
+        This method shall be implemented by subclasses.
 
         :param pkt: neverland.pkt.UDPPacket object
         :return: neverland.pkt.UDPPacket object
         '''
 
-        _type = pkt.fields.type
-        if _type is None:
-            raise PktWrappingError('packet.fields.type is not specified')
-
-        pkt_fmt = self._body_fmt_mapping.get(_type)
-        if pkt_fmt is None:
-            raise PktWrappingError(f'Unknown packet type: {_type}')
-
-        pkt.type = _type
-
-        udp_data = self.make_udp_pkt(pkt, pkt_fmt)
-        pkt.data = udp_data
-        return pkt
+        raise NotImplemented
 
     def make_udp_pkt(self, pkt, body_fmt):
         ''' make a valid Neverland UDP packet
@@ -263,19 +205,7 @@ class BaseProtocolWrapper():
         '''
 
         udp_data = b''
-        fmt_name = body_fmt.__class__.__name__
-
-        # Here, we need combine the header format and the body format,
-        # so that the calculator priority can work in both 2 format classes
-        if fmt_name in self.complexed_fmt_cache:
-            fmt = self.complexed_fmt_cache.get(fmt_name)
-        else:
-            fmt = ComplexedFormat()
-            fmt.combine_fmt(self.header_fmt)
-            fmt.combine_fmt(body_fmt)
-            fmt.sort_calculators()
-
-            self.complexed_fmt_cache.update({fmt_name: fmt})
+        fmt = self.complexed_fmt_mapping.get(pkt.fields.type)
 
         for field_name, definition in fmt.__fmt__.items():
             value = getattr(pkt.fields, field_name)
@@ -368,22 +298,13 @@ class BaseProtocolWrapper():
     def unwrap(self, pkt):
         ''' unpack a raw UDP packet
 
+        This method shall be implemented by subclasses.
+
         :param pkt: neverland.pkt.UDPPacket object
         :return: neverland.pkt.UDPPacket object
         '''
 
-        try:
-            fields, byte_fields = self.parse_udp_pkt(pkt)
-            pkt.fields = fields
-            pkt.byte_fields = byte_fields
-            pkt.type = fields.type
-            pkt.valid = True
-        except InvalidPkt as e:
-            pkt.fields = None
-            pkt.byte_fields = None
-            pkt.valid = False
-
-        return pkt
+        raise NotImplemented
 
     def parse_udp_pkt(self, pkt):
         ''' parse a raw UDP packet

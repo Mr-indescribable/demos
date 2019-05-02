@@ -13,11 +13,9 @@
 		"ipv6": false,
 
 		"crypto": {
-			"lib_path": "/usr/local/lib/libcrypto.so.1.1",
 			"password": "a SUPER SUPER LONG AND VERY VERY INDESCRIBABLE pASSw0rD",
-			"cipher": "aes-256-gcm",
-			"salt_len": 8,
-			"iv_len": 12,
+			"cipher": "kc-aes-256-gcm",
+			"salt_len": 12,
 			"iv_duration_range": [1000, 2000]
 		}
 	},

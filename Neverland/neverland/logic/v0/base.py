@@ -1,6 +1,7 @@
 #!/usr/bin/python3.6
 #coding: utf-8
 
+import time
 import logging
 
 from neverland.exceptions import (
@@ -14,7 +15,13 @@ from neverland.utils import ObjectifiedDict, Converter
 from neverland.node.context import NodeContext
 from neverland.core.state import ClusterControllingStates as CCStates
 from neverland.components.shm import SharedMemoryManager
-from neverland.components.connmgmt import SLOT_0, SLOT_1, SLOT_2, SLOTS
+from neverland.components.connmgmt import (
+    SLOT_0,
+    SLOT_1,
+    SLOT_2,
+    SLOTS,
+    ConnStates,
+)
 from neverland.logic.base import BaseLogicHandler as _BaseLogicHandler
 from neverland.protocol.crypto import Cryptor
 from neverland.protocol.v0.subjects import\
@@ -69,7 +76,7 @@ class BaseLogicHandler(_BaseLogicHandler):
             raise DropPacket
 
         pkt_mgr = NodeContext.pkt_mgr
-        pkt = pkt_mgr.get_pkt(responding_sn)
+        pkt = pkt_mgr.pop_pkt(responding_sn)
 
         if pkt is None:
             logger.debug(
@@ -146,6 +153,9 @@ class BaseLogicHandler(_BaseLogicHandler):
             logger.warn(e.args[0])
             return
 
+        NodeContext.conn_mgr.store_conn(conn, SLOT_2, override=True)
+        NodeContext.conn_mgr.shift_conns(remote_sa)
+
         conn_attribution = f'{conn.remote.ip}:{conn.remote.port}'
         new_cryptor = Cryptor(
                           self.config,
@@ -165,6 +175,11 @@ class BaseLogicHandler(_BaseLogicHandler):
                               dest=pkt.fields.src,
                               resp_sn=pkt.fields.sn,
                           )
+
+        ts = time.time()
+        NodeContext.conn_mgr.set_conn_update_time(remote_sa, ts)
+        NodeContext.cryptor_update_time.update(remote_sa_str, ts)
+
         return resp_pkt
 
     def handle_conn_ctrl_ack(self, pkt):
@@ -173,4 +188,67 @@ class BaseLogicHandler(_BaseLogicHandler):
         if responding_sn is None:
             raise DropPacket
 
-        original_pkt = NodeContext.pkt_mgr.get_pkt(responding_sn)
+        original_pkt = NodeContext.pkt_mgr.pop_pkt(responding_sn)
+        if original_pkt is None:
+            raise DropPacket
+
+        remote = original_pkt.fields.remote
+        remote_sa = (remote.ip, remote.port)
+        remote_sa_str = Converter.sa_2_str(remote_sa)
+
+        # update state of the establishing connection
+        conns = NodeContext.conn_mgr.get_conns(remote_sa)
+        conn2 = conns.get(SLOT_2)
+        NodeContext.conn_mgr.update_conn_state(
+            remote_sa,
+            SLOT_2,
+            ConnStates.ESTABLISHED,
+        )
+
+        NodeContext.conn_mgr.shift_conns(remote_sa)
+
+        stash = NodeContext.cryptor_stash.get(remote_sa_str)
+        if stash is None:
+            stash = {
+                'main_cryptor': None,
+                'fallback_cryptor': None,
+            }
+
+        conns = NodeContext.conn_mgr.get_conns(remote_sa)
+        conn0 = conns.get(SLOT_0)
+        conn1 = conns.get(SLOT_1)
+
+        main_cryptor = stash.get('main_cryptor')
+        fallback_cryptor = stash.get('fallback_cryptor')
+
+        if main_cryptor is None or main_cryptor.iv != conn1.iv:
+            if conn1 is None:
+                main_cryptor = None
+            else:
+                main_cryptor = Cryptor(
+                                   self.config,
+                                   iv=conn1.iv,
+                                   attribution=remote_sa_str,
+                               )
+
+        if fallback_cryptor is None or fallback_cryptor.iv != conn0.iv:
+            if conn0 is None:
+                fallback_cryptor = None
+            else:
+                fallback_cryptor = Cryptor(
+                                       self.config,
+                                       iv=conn0.iv,
+                                       attribution=remote_sa_str,
+                                   )
+        stash = {
+            'main_cryptor': main_cryptor,
+            'fallback_cryptor': fallback_cryptor,
+        }
+
+        NodeContext.cryptor_stash.update(
+            {remote_sa_str: stash}
+        )
+
+        ts = time.time()
+        NodeContext.conn_mgr.set_conn_update_time(remote_sa, ts)
+        NodeContext.cryptor_update_time.update(remote_sa_str, ts)

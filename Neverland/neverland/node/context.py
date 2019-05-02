@@ -70,6 +70,10 @@ class NodeContext():
     # "main cryptor" and the cryptor object belongs to the connection
     # in Slot-0 as "fallback cryptor".
     #
-    # The Cryptor with the default iv is provided as well,
-    # but it does not belong to any connection.
+    # The Cryptor with the default iv is provided as well, but it does not
+    # belong to any connection and only used on CONN_CTRL packets.
     cryptor_stash = dict()
+
+    # The last udpate time of Cryptor instances in cryptor_stash.
+    # Has the same data structure as the cryptor_stash (without default_cryptor).
+    cryptor_update_time = dict()

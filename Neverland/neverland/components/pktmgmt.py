@@ -165,12 +165,21 @@ class SpecialPacketManager():
             f'sn: {sn}, type: {hex_type}, dest: {pkt.fields.dest}'
         )
 
-    def get_pkt(self, sn):
-        shm_data = self.shm_mgr.get_value(self.shm_key_pkts, sn)
+    def get_pkt(self, sn, pop=False):
+        ''' get a packet form the packet manager
+
+        :param pop: specifies whether the packet will be remoted from
+                    the storage after the get_pkt invocation.
+        '''
+
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_pkts, sn)
         shm_value = shm_data.get('value')
 
         if shm_value is None:
             return None
+
+        if pop:
+            self.remove_pkt(sn)
 
         # and here, we restore the base64 encoded salt into bytes
         fields = shm_value.get('fields')
@@ -184,6 +193,9 @@ class SpecialPacketManager():
             previous_hop=shm_value.get('previous_hop'),
             next_hop=shm_value.get('next_hop'),
         )
+
+    def pop_pkt(self, sn):
+        return self.get_pkt(sn, pop=True)
 
     def remove_pkt(self, sn):
         self.cancel_repeat(sn)
@@ -218,7 +230,7 @@ class SpecialPacketManager():
         logger.debug(f'set_pkt_last_repeat_time, sn: {sn}, ts: {timestamp}')
 
     def get_pkt_last_repeat_time(self, sn):
-        shm_data = self.shm_mgr.get_value(self.shm_key_last_repeat_time, sn)
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_last_repeat_time, sn)
         return shm_data.get('value')
 
     def set_pkt_next_repeat_time(self, sn, timestamp):
@@ -226,7 +238,7 @@ class SpecialPacketManager():
         logger.debug(f'set_pkt_next_repeat_time, sn: {sn}, ts: {timestamp}')
 
     def get_pkt_next_repeat_time(self, sn):
-        shm_data = self.shm_mgr.get_value(self.shm_key_next_repeat_time, sn)
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_next_repeat_time, sn)
         return shm_data.get('value')
 
     def set_pkt_max_repeat_times(self, sn, times):
@@ -234,7 +246,7 @@ class SpecialPacketManager():
         logger.debug(f'set_pkt_max_repeat_times, sn: {sn}, times: {times}')
 
     def get_pkt_max_repeat_times(self, sn):
-        shm_data = self.shm_mgr.get_value(self.shm_key_max_repeat_times, sn)
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_max_repeat_times, sn)
         return shm_data.get('value')
 
     def set_pkt_repeated_times(self, sn, times):
@@ -242,7 +254,7 @@ class SpecialPacketManager():
         logger.debug(f'set_pkt_repeated_times, sn: {sn}, times: {times}')
 
     def get_pkt_repeated_times(self, sn):
-        shm_data = self.shm_mgr.get_value(self.shm_key_repeated_times, sn)
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_repeated_times, sn)
         return shm_data.get('value')
 
     def increase_pkt_repeated_times(self, sn):

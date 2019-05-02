@@ -11,6 +11,7 @@ from neverland.exceptions import (
     ArgumentError,
     ConnSlotNotAvailable,
     NoConnAvailable,
+    ConnTimeout,
 )
 from neverland.pkt import UDPPacket, PktTypes
 from neverland.utils import ObjectifiedDict, MetaEnum
@@ -202,6 +203,24 @@ class ConnectionManager():
     #     }
     SHM_KEY_TMP_PROACTIVITY = 'ConnectionManager-%d_Proactivity'
 
+    # The SHM container to store the last update time of connections
+    #
+    # The last update time is used to ensure the consistency of
+    # Cryptor instances between worker processes.
+    #
+    # Once conntions between a remote node has been updated (any connection),
+    # the last update time in this container shall be updated too.
+    #
+    # When a worker process uses the Cryptor, it must check out this time
+    # and ensure the Cryptor instance stored in the NodeContext.cryptor_stash
+    # has been updated to the newest.
+    #
+    # Data structure:
+    #     {
+    #         "ip:port": timestamp (float)
+    #     }
+    SHM_KEY_TMP_CONN_UPDATE_TIME = 'ConnectionManager-%d_ConnUpdateTime'
+
     def __init__(self, config, iv_len=None):
         ''' Constructor
 
@@ -236,6 +255,12 @@ class ConnectionManager():
         self.shm_key_proactivity = self.SHM_KEY_TMP_PROACTIVITY % self.pid
         self.shm_mgr.create_key_and_ignore_conflict(
             self.shm_key_proactivity,
+            SHMContainerTypes.DICT,
+        )
+
+        self.shm_key_conn_update_time = self.SHM_KEY_TMP_CONN_UPDATE_TIME % self.pid
+        self.shm_mgr.create_key_and_ignore_conflict(
+            self.shm_key_update_time,
             SHMContainerTypes.DICT,
         )
 
@@ -303,6 +328,23 @@ class ConnectionManager():
             )
         return result
 
+    def get_usable_slots(self, remote):
+        ''' get all usable slots of a remote
+
+        :param remote: remote socket address, (ip, port)
+        :returns: a list of slot names
+        '''
+
+        usable_slots = list(SLOTS)
+
+        conns = self.get_conns(remote)
+        for slot in SLOTS:
+            conn = conns.get(slot)
+            if conn is not None:
+                usable_slots.remove(slot)
+
+        return usable_slots
+
     def store_conn(self, conn, slot, override=False):
         ''' store a connection object to a slot
 
@@ -331,23 +373,7 @@ class ConnectionManager():
             dict_key=remote_name,
             value=conn_info,
         )
-
-    def get_usable_slots(self, remote):
-        ''' get all usable slots of a remote
-
-        :param remote: remote socket address, (ip, port)
-        :returns: a list of slot names
-        '''
-
-        usable_slots = list(SLOTS)
-
-        conns = self.get_conns(remote)
-        for slot in SLOTS:
-            conn = conns.get(slot)
-            if conn is not None:
-                usable_slots.remove(slot)
-
-        return usable_slots
+        self.set_conn_update_time(remote, time.time())
 
     def new_conn(
         self, remote, received_iv=None, iv_duration=None,
@@ -447,11 +473,24 @@ class ConnectionManager():
             if not synchronous:
                 return None
 
-            # while timeout > 0:
-                # TODO complete this after the response processing logic is done
+            # Watch SLOT_2 and see if the establishing connection is removed.
+            # When connection in SLOT_2 is removed and connection in SLOT_1 has
+            # the sn which the establishing connection had, then the connection
+            # is established.
+            establishing_sn = conn.sn
+            while timeout > 0:
+                conns = self.get_conns()
+                conn2 = conns.get(SLOT_2)
 
-                # timeout -= interval
-                # time.sleep(interval)
+                if conn2 is None:
+                    conn1 = conns.get(SLOT_1)
+                    if (conn1.sn == establishing_sn):
+                        return conn1
+
+                timeout -= interval
+                time.sleep(interval)
+
+            raise ConnTimeout
         else:
             return conn
 
@@ -460,6 +499,8 @@ class ConnectionManager():
 
         This method shifts connections to the left (see mind mapping above)
         for one slot if the connection in slot-2 has been established.
+
+        :param remote: socket address in tuple format, (ip, port)
         '''
 
         conns = self.get_conns(remote)
@@ -477,6 +518,8 @@ class ConnectionManager():
             self.store_conn(conn_to_slot_1, SLOT_1, override=True)
             self.store_conn(conn_to_slot_2, SLOT_2, override=True)
 
+            self.set_conn_update_time(remote, time.time())
+
     def get_conn(self, remote):
         ''' get a usable Connection object of the specified remote
 
@@ -484,7 +527,7 @@ class ConnectionManager():
         :returns: Connection object
         '''
 
-        conns = self.get_conns()
+        conns = self.get_conns(remote)
 
         # according to the explanations above, the priority of slots is 1 > 0
         conn_s1 = conns.get(SLOT_1)
@@ -496,6 +539,28 @@ class ConnectionManager():
             return conn_s0
 
         raise NoConnAvailable
+
+    def update_conn_state(self, remote, slot, state):
+        ''' update state of a connection
+
+        :param remote: remote socket address, (ip, port)
+        :param slot: slot name, enumerated in SLOTS
+        :param state: state of connection, enumerated in ConnStates
+        '''
+
+        conns = self.get_conns(remote)
+        conn = conns.get(slot)
+
+        if conn is None:
+            logger.error(
+                f'Connection not found when updating connection state, '
+                f'remote: {remote}, slot: {slot}'
+            )
+            return
+
+        conn.__update__({'state': state})
+        self.store_conn(conn, slot, override=True)
+        self.set_conn_update_time(remote, time.time())
 
     def remove_conn(self, remote, slot):
         ''' close a connection
@@ -516,6 +581,7 @@ class ConnectionManager():
             dict_key=remote_name,
             value=native_info,
         )
+        self.set_conn_update_time(remote, time.time())
 
     def get_conn_proactivity(self, remote):
         ''' get the proactive flag of connection establishment
@@ -537,4 +603,27 @@ class ConnectionManager():
             key=self.shm_key_proactivity,
             dict_key=remote_name,
             value=proactive,
+        )
+
+    def get_conn_update_time(self, remote):
+        ''' get the last update time of connections between a remote node
+        '''
+
+        remote_name = self._remote_sa_2_key(remote)
+
+        return self.shm_mgr.get_dict_value(
+           self.shm_key_conn_update_time,
+           remote_name,
+        )
+
+    def set_conn_update_time(self, remote, timestamp):
+        ''' set the last update time of connections between a remote node
+        '''
+
+        remote_name = self._remote_sa_2_key(remote)
+
+        self.shm_mgr.update_dict(
+            key=self.shm_key_conn_update_time,
+            dict_key=remote_name,
+            value=timestamp,
         )

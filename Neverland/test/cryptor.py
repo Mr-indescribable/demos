@@ -10,6 +10,7 @@ import unittest
 import __code_path__
 from neverland.logging import init_logger
 from neverland.utils import ObjectifiedDict as OD
+from neverland.utils import errno_from_exception
 from neverland.protocol.crypto import Cryptor
 
 
@@ -118,6 +119,16 @@ class CryptorTest(unittest.TestCase):
         print(f'Seconds spent on generating random data: {tsum_urandom}')
         print(f'Seconds spent on encrypting & decrypting: {tsum_crypto}')
 
+    def test_2_kc_decryption_failure(self):
+        print('\n Testing decryption failure of KC')
+        kc_cryptor = Cryptor(kc_config)
+        data_4_test = os.urandom(32)
+        try:
+            plain_text = kc_cryptor.decrypt(data_4_test)
+        except OSError as e:
+            errno = errno_from_exception(e)
+            print(f'OSError catched, error: {errno}')
+            self.assertEqual(errno, 74)
 
 if __name__ == '__main__':
     unittest.main()

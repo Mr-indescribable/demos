@@ -26,6 +26,10 @@ class InvalidPkt(Exception):
     pass
 
 
+class DecryptionFailed(InvalidPkt):
+    pass
+
+
 class AddressAlreadyInUse(Exception):
     pass
 
@@ -93,6 +97,18 @@ class ConnError(Exception):
 class ConnSlotNotAvailable(ConnError):
 
     ''' Specified slot is not available
+    '''
+
+
+class ConnNotEstablished(ConnError):
+
+    ''' No connection established between a remote node.
+    '''
+
+
+class ConnTimeout(ConnError):
+
+    ''' The connection cannot be established in the specified time
     '''
 
 

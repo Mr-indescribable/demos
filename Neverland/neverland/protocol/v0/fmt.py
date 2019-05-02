@@ -5,6 +5,8 @@ from neverland.pkt import FieldTypes, PktTypes
 from neverland.protocol.base import (
     FieldDefinition,
     BasePktFormat,
+)
+from neverland.protocol.v0.calculators import (
     src_calculator,
     salt_calculator,
     mac_calculator,
@@ -187,7 +189,7 @@ class ConnCtrlPktFormat(BasePktFormat):
 
             # The iv
             'iv': FieldDefinition(
-                      length = config.net.crypto.iv_len or 8,
+                      length = config.net.crypto.iv_len,
                       type   = FieldTypes.PY_BYTES,
                   ),
         }

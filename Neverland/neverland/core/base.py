@@ -263,13 +263,16 @@ class BaseCore():
         self.set_cc_state(CCStates.WAITING_FOR_LEAVE)
 
     def handle_pkt(self, pkt):
-        pkt = self.protocol_wrapper.unwrap(pkt)
-        if not pkt.valid:
-            return
-
         try:
+            pkt = self.protocol_wrapper.unwrap(pkt)
+            if not pkt.valid:
+                return
+
             pkt = self.logic_handler.handle_logic(pkt)
-        except DropPacket:
+
+        # Actually we have catched all InvalidPkt in protocol_wrapper,
+        # but maybe we will use it in future.
+        except (DropPacket, InvalidPkt) as e:
             return
 
         pkt = self.protocol_wrapper.wrap(pkt)

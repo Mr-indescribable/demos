@@ -3,7 +3,6 @@
 
 import logging
 
-from neverland.utils import HashTools
 from neverland.exceptions import ArgumentError
 from neverland.protocol.crypto.mode import Modes
 from neverland.protocol.crypto.openssl import OpenSSLCryptor, load_libcrypto
@@ -41,13 +40,24 @@ def preload_crypto_lib(cipher_name, libpath=None):
         preload_func(libpath)
 
 
-class Cryptor(object):
+class Cryptor():
 
     # we tag the cryptor with a label of the socket address of the remote node
     # type: str, format: "ip:port"
     attribution = None
 
     def __init__(self, config, key=None, iv=None, attribution=None):
+        ''' Constructor
+
+        :param config: the config
+        :param key: optional, if this argument is not given, then the default
+                    key derived by neverland.utils.HashTools.hkdf will be used
+        :param iv: optional, if this argument is not given, then the default
+                   IV derived by neverland.utils.HashTools.hdivdf will be used
+        :param attribution: a tag about which remote node that this cryptor
+                            belongs to.
+        '''
+
         self.config = config
         self.attribution = attribution
 

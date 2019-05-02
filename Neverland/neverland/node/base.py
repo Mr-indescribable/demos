@@ -28,7 +28,7 @@ from neverland.logic.v0.client.logic_handler import ClientLogicHandler
 from neverland.logic.v0.controller.logic_handler import ControllerLogicHandler
 from neverland.logic.v0.outlet.logic_handler import OutletLogicHandler
 from neverland.logic.v0.relay.logic_handler import RelayLogicHandler
-from neverland.protocol.v0 import ProtocolWrapper
+from neverland.protocol.v0.wrapper import ProtocolWrapper
 from neverland.protocol.v0.fmt import (
     HeaderFormat,
     DataPktFormat,

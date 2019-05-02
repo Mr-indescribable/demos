@@ -19,6 +19,10 @@ By default, Linux kernel >= 4.9 is required
 _kernel_version_checked = False
 
 
+# The errno of KC decription failure
+KC_DECRYPTION_FAILED = 74
+
+
 class BaseKernelCryptor():
 
     ''' The base class of kernel cryptors
@@ -170,6 +174,8 @@ class BaseKernelCryptor():
     def update(self, data):
         ''' do encryption or decryption
         '''
+
+        raise NotImplemented
 
     def change_iv(self, iv):
         self._iv = iv

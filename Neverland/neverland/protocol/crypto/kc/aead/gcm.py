@@ -5,10 +5,13 @@ import os
 import socket
 import platform
 
-from neverland.exceptions import ArgumentError
-from neverland.utils import HashTools
+from neverland.exceptions import ArgumentError, DecryptionFailed
+from neverland.utils import HashTools, errno_from_exception
 from neverland.protocol.crypto.mode import Modes
-from neverland.protocol.crypto.kc.base import BaseKernelCryptor
+from neverland.protocol.crypto.kc.base import (
+    BaseKernelCryptor,
+    KC_DECRYPTION_FAILED,
+)
 
 
 ''' The KC GCM Crypto Module
@@ -77,7 +80,14 @@ class GCMKernelCryptor(BaseKernelCryptor):
             assoclen=self._aad_len,
         )
 
-        res = self.alg_conn.recv(recv_buffer_len)
+        try:
+            res = self.alg_conn.recv(recv_buffer_len)
+        except OSError as e:
+            errno = errno_from_exception(e)
+            if errno == KC_DECRYPTION_FAILED:
+                raise DecryptionFailed
+            else:
+                raise e
 
         if self._mode == Modes.ENCRYPTING:
             # In encrypting mode of GCM ciphers,
