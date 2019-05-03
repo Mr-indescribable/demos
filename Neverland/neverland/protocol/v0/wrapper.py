@@ -77,6 +77,7 @@ class ProtocolWrapper(BaseProtocolWrapper):
         ''' Encrypt a packet which is going to be sent
         '''
 
+        cryptor = None
         if pkt.type in (PktTypes.CONN_CTRL, PktTypes.CONN_CTRL_ACK):
             cryptor = NodeContext.cryptor_stash.get('default_cryptor')
         else:
@@ -92,20 +93,20 @@ class ProtocolWrapper(BaseProtocolWrapper):
                 raise ConnNotEstablished(
                     f'No usable connection between remote node: {remote_sa_str}'
                 )
-            if conn_utime > cryptor_utime:
+            if cryptor_utime is None or conn_utime > cryptor_utime:
                 self.__sync_cryptor_stash(remote_sa)
 
                 ts = time.time()
                 NodeContext.conn_mgr.set_conn_update_time(remote_sa, ts)
-                NodeContext.cryptor_update_time.update(remote_sa_str, ts)
+                NodeContext.cryptor_update_time.update({remote_sa_str: ts})
 
             stash = NodeContext.cryptor_stash.get(remote_sa_str)
             cryptor = stash.get('main_cryptor') or stash.get('fallback_cryptor')
 
-            if cryptor is None:
-                msg = f'No usable cryptor instance for remote node {remote_sa_str}'
-                logger.error(msg)
-                raise ConnNotEstablished(msg)
+        if cryptor is None:
+            msg = f'No usable cryptor instance for remote node {remote_sa_str}'
+            logger.error(msg)
+            raise ConnNotEstablished(msg)
 
         pkt.data = cryptor.encrypt(pkt.data)
         return pkt
@@ -158,15 +159,15 @@ class ProtocolWrapper(BaseProtocolWrapper):
         remote_sa = pkt.previous_hop
         remote_sa_str = Converter.sa_2_str(remote_sa)
 
-        # conn_update_time = NodeContext.conn_mgr.get_conn_update_time(remote_sa)
-        # cryptor_update_time = NodeContext.cryptor_update_time.get(remote_sa_str)
+        conn_utime = NodeContext.conn_mgr.get_conn_update_time(remote_sa)
+        cryptor_utime = NodeContext.cryptor_update_time.get(remote_sa_str)
 
-        # if conn_update_time > cryptor_update_time:
-            # self.__sync_cryptor_stash(remote_sa)
+        if cryptor_utime is None or conn_utime > cryptor_utime:
+            self.__sync_cryptor_stash(remote_sa)
 
-            # ts = time.time()
-            # NodeContext.conn_mgr.set_conn_update_time(remote_sa, ts)
-            # NodeContext.cryptor_update_time.update(remote_sa_str, ts)
+            ts = time.time()
+            NodeContext.conn_mgr.set_conn_update_time(remote_sa, ts)
+            NodeContext.cryptor_update_time.update({remote_sa_str: ts})
 
         cryptor_stash = NodeContext.cryptor_stash.get(remote_sa_str)
         default_cryptor = NodeContext.cryptor_stash.get('default_cryptor')

@@ -28,6 +28,7 @@ from neverland.logic.v0.client.logic_handler import ClientLogicHandler
 from neverland.logic.v0.controller.logic_handler import ControllerLogicHandler
 from neverland.logic.v0.outlet.logic_handler import OutletLogicHandler
 from neverland.logic.v0.relay.logic_handler import RelayLogicHandler
+from neverland.protocol.crypto import Cryptor
 from neverland.protocol.v0.wrapper import ProtocolWrapper
 from neverland.protocol.v0.fmt import (
     HeaderFormat,
@@ -90,6 +91,15 @@ class BaseNode():
 
         self.node_id = self.config.basic.node_id
 
+        # Whether the SIGUSR1 signal has been received.
+        #
+        # In Neverland, the SIGUSR1 (10) has been defined as a restart signal.
+        # Once the master process receives the SIGUSR1 signal, it will close
+        # all subprocesses and clean NodeContext, then, run again.
+        #
+        # See also: self._handle_siguser1_master
+        self.sigusr1_received = False
+
     def _write_master_pid(self):
         pid_path = self.config.basic.pid_file
         pid = os.getpid()
@@ -114,6 +124,13 @@ class BaseNode():
             return int(content)
         except ValueError:
             raise ValueError('pid file has beed tampered')
+
+    def _handle_siguser1(self, signal, sf):
+        ''' Handle the SIGUSR1 (10) signal
+        '''
+
+        self.sigusr1_received = True
+        self._kill(os.getpid())  # suicide, and respawn :)
 
     def _handle_term_master(self, signal, sf):
         logger.debug(f'Master process received signal: {signal}')
@@ -147,6 +164,8 @@ class BaseNode():
         sig.signal(sig.SIGHUP, sig.SIG_IGN)
         for s in TERM_SIGNALS:
             sig.signal(s, self._handle_term_master)
+
+        sig.signal(sig.SIGUSR1, self._handle_siguser1)
 
     def _sig_normal_worker(self):
         sig.signal(sig.SIGHUP, sig.SIG_IGN)
@@ -357,16 +376,17 @@ class BaseNode():
         self.main_afferent.destroy()
 
         self.logic_handler.close_shm()
-        self.core.close_shm()
         self.pkt_mgr.close_shm()
+        self.conn_mgr.close_shm()
+        self.core.close_shm()
 
         self.main_afferent = None
         self.efferent = None
         self.protocol_wrapper = None
         self.logic_handler = None
-        self.core = None
         self.pkt_mgr = None
         self.conn_mgr = None
+        self.core = None
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} cleaned modules')
@@ -402,6 +422,12 @@ class BaseNode():
         pid = os.getpid()
         logger.debug(f'Worker {pid} cleaned NodeContext')
 
+    def _load_default_cryptor(self):
+        default_cryptor = Cryptor(self.config)
+        NodeContext.cryptor_stash.update(
+            {'default_cryptor': default_cryptor}
+        )
+
     def join_cluster(self):
         if self.role == Roles.CONTROLLER:
             raise RuntimeError(
@@ -411,6 +437,22 @@ class BaseNode():
         self.core.request_to_join_cluster()
         self.core.run_for_a_while(5)
         raise TimeoutError
+
+    def _on_break(self):
+        '''
+        a hook that needs to be invoked while self.run has been broken
+        by some exception
+        '''
+
+        shm_pid = self.shm_worker_pid
+        self._kill(shm_pid)
+        os.waitpid(shm_pid, 0)
+        logger.debug(f'SharedMemoryManager worker {shm_pid} terminated')
+
+        pid_fl = self.config.basic.pid_file
+        os.remove(pid_fl)
+        logger.debug(f'Removed pid file: {pid_fl}')
+        logger.info('Master process exits.\n\n')
 
     def run(self):
         pid_fl = self.config.basic.pid_file
@@ -439,6 +481,7 @@ class BaseNode():
 
         self._write_master_pid()
         self._start_shm_mgr()
+        self._load_default_cryptor()
 
         # Before we start workers, we need to join the cluster first.
         if self.role != Roles.CONTROLLER:
@@ -514,18 +557,15 @@ class BaseNode():
         self._kill(pid)
         logger.info('Sent SIGTERM to the master process')
 
-    def _on_break(self):
-        '''
-        a hook that needs to be invoked while self.run has been broken
-        by some exception
-        '''
+    def main(self):
+        while True:
+            self.run()
 
-        shm_pid = self.shm_worker_pid
-        self._kill(shm_pid)
-        os.waitpid(shm_pid, 0)
-        logger.debug(f'SharedMemoryManager worker {shm_pid} terminated')
+            if self.sigusr1_received:
+                self._clean_modules()
+                self._clean_context()
 
-        pid_fl = self.config.basic.pid_file
-        os.remove(pid_fl)
-        logger.debug(f'Removed pid file: {pid_fl}')
-        logger.info('Master process exits.\n\n')
+                # Reset the state of signal, or we will stuck in this while loop
+                self.sigusr1_received = False
+            else:
+                break

@@ -112,6 +112,7 @@ class ComplexedFormat(BasePktFormat):
 
     def __init__(self):
         self.__fmt__ = dict()
+        self.__calc_definition__ = dict()
 
     def combine_fmt(self, fmt_cls):
         ''' Combine a new packet format class into the existing fields.
@@ -122,6 +123,22 @@ class ComplexedFormat(BasePktFormat):
         '''
 
         self.__fmt__.update(fmt_cls.__fmt__)
+
+    def sort_calculators(self):
+        '''
+        Same as BasePktFormat.sort_calculators, but ComplexedFormat must be
+        instantiated before we use it, so we cannot use the class method here
+        '''
+
+        def _key(item):
+            definition = item[1]
+            return definition.calc_priority or 0
+
+        sorted_fmt = sorted(self.__fmt__.items(), key=_key)
+
+        for field_name, definition in sorted_fmt:
+            if definition.calculator is not None:
+                self.__calc_definition__.update({field_name: definition})
 
 
 class BaseProtocolWrapper():
@@ -246,6 +263,7 @@ class BaseProtocolWrapper():
         # Finally, all fields are ready. Now we can combine them into udp_data
         for field_name, definition in fmt.__fmt__.items():
             bytes_ = getattr(pkt.byte_fields, field_name)
+
             udp_data += bytes_
 
         return udp_data

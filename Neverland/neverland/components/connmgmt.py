@@ -258,11 +258,14 @@ class ConnectionManager():
             SHMContainerTypes.DICT,
         )
 
-        self.shm_key_conn_update_time = self.SHM_KEY_TMP_CONN_UPDATE_TIME % self.pid
+        self.shm_key_conn_utime = self.SHM_KEY_TMP_CONN_UPDATE_TIME % self.pid
         self.shm_mgr.create_key_and_ignore_conflict(
-            self.shm_key_conn_update_time,
+            self.shm_key_conn_utime,
             SHMContainerTypes.DICT,
         )
+
+    def close_shm(self):
+        self.shm_mgr.disconnect()
 
     def _remote_sa_2_key(self, remote):
         ''' convert remote socket address to a key string
@@ -585,6 +588,8 @@ class ConnectionManager():
 
     def get_conn_proactivity(self, remote):
         ''' get the proactive flag of connection establishment
+
+        :param remote: remote socket address, (ip, port)
         '''
 
         remote_name = self._remote_sa_2_key(remote)
@@ -595,6 +600,9 @@ class ConnectionManager():
 
     def set_conn_proactivity(self, remote, proactive):
         ''' set the proactive flag of connection establishment
+
+        :param remote: remote socket address, (ip, port)
+        :param proactive: specifies the proactivity of the connection
         '''
 
         remote_name = self._remote_sa_2_key(remote)
@@ -607,23 +615,28 @@ class ConnectionManager():
 
     def get_conn_update_time(self, remote):
         ''' get the last update time of connections between a remote node
+
+        :param remote: remote socket address, (ip, port)
         '''
 
         remote_name = self._remote_sa_2_key(remote)
 
         return self.shm_mgr.get_dict_value(
-           self.shm_key_conn_update_time,
+           self.shm_key_conn_utime,
            remote_name,
         )
 
     def set_conn_update_time(self, remote, timestamp):
         ''' set the last update time of connections between a remote node
+
+        :param remote: remote socket address, (ip, port)
+        :param timestamp: timestamp in int or float
         '''
 
         remote_name = self._remote_sa_2_key(remote)
 
         self.shm_mgr.update_dict(
-            key=self.shm_key_conn_update_time,
+            key=self.shm_key_conn_utime,
             dict_key=remote_name,
             value=timestamp,
         )

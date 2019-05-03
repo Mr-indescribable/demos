@@ -706,17 +706,10 @@ class SharedMemoryManager():
                 rcode=ReturnCodes.TYPE_ERROR,
             )
 
-        if value_key not in self.resources:
-            return self._gen_response_json(
-                conn_id=conn_id,
-                succeeded=False,
-                rcode=ReturnCodes.KEY_ERROR,
-            )
-
         if isinstance(value, ObjectifiedDict):
             value = value.__to_dict__()
 
-        self.resources[value_key].update(
+        self.resources[key].update(
             {value_key: value}
         )
         return self._gen_response_json(
@@ -1203,13 +1196,13 @@ class SharedMemoryManager():
         )
         return self.read_response(self.current_connection.conn_id)
 
-    def get_dict_value(self, key, value_key, backlogging=True):
+    def get_dict_value(self, key, dict_key, backlogging=True):
         ''' get a value from a dict container
 
         allowed container type: DICT
 
         :param key: the container key
-        :param value_key: key in the dict container
+        :param dict_key: key in the dict container
         '''
 
         # value_key arguments in integer will be automatically converted into
@@ -1221,7 +1214,7 @@ class SharedMemoryManager():
             conn_id=self.current_connection.conn_id,
             action=Actions.DICT_GET,
             key=key,
-            value_key=str(value_key),
+            value_key=str(dict_key),
             backlogging=backlogging,
         )
         return self.read_response(self.current_connection.conn_id)
@@ -1240,6 +1233,7 @@ class SharedMemoryManager():
             conn_id=self.current_connection.conn_id,
             action=Actions.DICT_UPDATE,
             key=key,
+            value_key=str(dict_key),
             value=value,
             backlogging=backlogging,
         )

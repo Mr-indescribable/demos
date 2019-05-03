@@ -1,10 +1,34 @@
 #!/usr/bin/python3.6
 # coding: utf-8
 
+import os
 import json
 import uuid
 import socket
 import hashlib
+import logging
+
+logger = logging.getLogger('Main')
+
+
+class Shell():
+
+    @classmethod
+    def rm(cls, filename):
+        logger.info(f'rm {filename}')
+
+        if os.path.exists(filename):
+            if os.path.isdir(filename):
+                raise Exception(
+                    f'Cannot remove {filename}, it\'s a directory'
+                )
+            else:
+                os.remove(filename)
+
+    @classmethod
+    def mkdir(cls, folder):
+        logger.info(f'mkdir -p {folder}')
+        os.makedirs(folder)
 
 
 class ObjectifiedDict():
