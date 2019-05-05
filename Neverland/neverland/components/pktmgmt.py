@@ -332,7 +332,7 @@ class SpecialPacketRepeater():
 
     def run(self):
         pid = os.getpid()
-        logger.info(f'starting SpecialPacketRepeater worker {pid}')
+        logger.debug(f'Running SpecialPacketRepeater worker {pid}')
 
         self.__running = True
 

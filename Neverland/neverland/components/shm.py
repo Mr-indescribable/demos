@@ -893,6 +893,9 @@ class SharedMemoryManager():
             self._remove_connection(conn_id)
 
     def run_as_worker(self):
+        pid = os.getpid()
+        logger.debug(f'Running SharedMemoryManager worker {pid}')
+
         self._epoll = select.epoll()
 
         self._worker_sock = self._create_socket(self.worker_socket_path)

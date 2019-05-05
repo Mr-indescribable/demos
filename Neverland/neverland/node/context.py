@@ -9,10 +9,13 @@ class NodeContext():
     The global context container.
     '''
 
-    # pid of the worker
+    # pid of the master process
+    master_pid = None
+
+    # pid of current process
     pid = None
 
-    # pid of the packet repeater worker
+    # pid of the packet repeater worker process
     pkt_rpter_pid = None
 
     # the IP address that the service is listening
