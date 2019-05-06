@@ -1,5 +1,6 @@
 {
 	"basic": {
+		"role": "CONTROLLER",
 		"node_id": 1,
 		"worker_amount": 1,
 		"pid_file": "/tmp/nl_ctrl.pid"

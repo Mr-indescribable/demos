@@ -10,6 +10,8 @@ import logging
 import traceback
 
 from neverland.exceptions import (
+    ConfigError,
+    ArgumentError,
     PidFileNotExists,
     FailedToJoinCluster,
     FailedToDetachFromCluster,
@@ -38,11 +40,11 @@ from neverland.protocol.v0.fmt import (
 )
 from neverland.components.idgeneration import IDGenerator
 from neverland.components.shm import SharedMemoryManager
+from neverland.components.connmgmt import ConnectionManager
 from neverland.components.pktmgmt import (
     SpecialPacketManager,
     SpecialPacketRepeater,
 )
-from neverland.components.connmgmt import ConnectionManager
 
 
 logger = logging.getLogger('Node')
@@ -81,15 +83,25 @@ class BaseNode():
 
     role = None
 
-    def __init__(self, config, role=None):
+    def __init__(self, config):
         self.config = config
-        self.role = role or self.role
+
+        if self.role is None:
+            role_name = self.config.basic.role
+            self.role = getattr(Roles, role_name)
+        else:
+            if not self.role in Roles:
+                raise ArgumentError(f'predefined role value is not valid')
 
         self.worker_pids = []
         self.shm_worker_pid = None
         self.pkt_rpter_worker_pid = None
 
         self.node_id = self.config.basic.node_id
+
+        # role of node
+        # Shall not be overrided or cleaned in _clean_context method.
+        NodeContext.role = self.role
 
         # pid of master process
         # Shall not be overrided or cleaned in _clean_context method.
@@ -473,6 +485,22 @@ class BaseNode():
         self.clean_files(forced=True)
         logger.info('Master process is going to exit.\n\n')
 
+    def conn_entrance(self):
+        if self.role == Roles.CONTROLLER:
+            raise RuntimeError(
+                'Controller node is the root node of the cluster'
+            )
+
+        self.core.conn_entrance()
+
+    def establish_conns(self):
+        if self.role == Roles.CONTROLLER:
+            raise RuntimeError(
+                'Controller node is the root node of the cluster'
+            )
+
+        self.core.establish_conns()
+
     def join_cluster(self):
         if self.role == Roles.CONTROLLER:
             raise RuntimeError(
@@ -480,6 +508,13 @@ class BaseNode():
             )
 
         self.core.request_to_join_cluster()
+
+        # For receiving the response, we shall run the core and it will start
+        # to listen the port and wait for response. Once the response has been
+        # received, the SuccessfullyJoinedCluster exception (actually, info)
+        # will be raisen from the LogicHandler and this invocation will be
+        # interrupted. If there is no response in 5 seconds, then the invocation
+        # will be terminated as well and a TimeoutError will be raisen.
         self.core.run_for_a_while(5)
         raise TimeoutError
 

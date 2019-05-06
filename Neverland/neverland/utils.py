@@ -7,6 +7,7 @@ import uuid
 import socket
 import hashlib
 import logging
+import ipaddress
 
 logger = logging.getLogger('Main')
 
@@ -166,6 +167,51 @@ class HashTools():
         return cls.sha256(
             digest.encode()
         )[x:].encode()
+
+
+class VerifiTools():
+
+    ''' Tools used in verifications
+    '''
+
+    @classmethod
+    def type_matched(cls, obj, type):
+        ''' determines if an object matches a type
+
+        :param obj: any object needs to be verified
+        :param types: the expected type
+        '''
+
+        obj_type = obj.__class__ if obj is not None else None
+        return obj_type == type
+
+    @classmethod
+    def is_ipv4(cls, obj):
+        ''' determines if an object is a string that contains an IPv4 address
+        '''
+
+        if not isinstance(obj, str):
+            return False
+
+        try:
+            ip = ipaddress.ip_address(obj)
+            return isinstance(ip, ipaddress.IPv4Address)
+        except ValueError:
+            return False
+
+    @classmethod
+    def is_ipv6(cls, obj):
+        ''' determines if an object is a string that contains an IPv6 address
+        '''
+
+        if not isinstance(obj, str):
+            return False
+
+        try:
+            ip = ipaddress.ip_address(obj)
+            return isinstance(ip, ipaddress.IPv6Address)
+        except ValueError:
+            return False
 
 
 class Converter():

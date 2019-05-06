@@ -19,20 +19,7 @@ from neverland.node.controller import ControllerNode
 
 logger = logging.getLogger('Main')
 
-
-STANDARD_ROLE_NAME_MAPPING = {
-    'client': Roles.CLIENT,
-    'relay': Roles.RELAY,
-    'outlet': Roles.OUTLET,
-    'controller': Roles.CONTROLLER,
-}
-
-CODE_STYLE_ROLE_NAME_MAPPING = {
-    '0x01': Roles.CLIENT,
-    '0x02': Roles.RELAY,
-    '0x03': Roles.OUTLET,
-    '0x04': Roles.CONTROLLER,
-}
+ROLE_NAMES = Roles._keys()
 
 ROLE_NODE_CLS_MAPPING = {
     Roles.CLIENT: ClientNode,
@@ -57,11 +44,6 @@ def parse_cli_args():
         metavar='<path>',
         default='./nl.json',
         help='Specify the config file. default: ./nl.json',
-    )
-    argp.add_argument(
-        '-r',
-        metavar='<role>',
-        help='Specify role for the node',
     )
     args = argp.parse_args()
     return args
@@ -101,19 +83,9 @@ def launch():
 
     init_all_loggers(config)
 
-    node_role_name = args.r
-    if node_role_name is None:
-        raise ArgumentError('Role is not specified')
-
-    node_role = (
-        STANDARD_ROLE_NAME_MAPPING.get(node_role_name) or
-        CODE_STYLE_ROLE_NAME_MAPPING.get(node_role_name)
-    )
-    if node_role is None:
-        raise ArgumentError(f'Invalid role: {node_role_name}')
-
+    node_name = config.basic.role
+    node_role = getattr(Roles, node_name)
     node_cls = ROLE_NODE_CLS_MAPPING.get(node_role)
-
     node = node_cls(config)
 
     if args.action == 'start':

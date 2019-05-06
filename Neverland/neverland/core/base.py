@@ -98,9 +98,11 @@ class BaseCore():
         self.shm_mgr = SharedMemoryManager(self.config)
 
         self.plug_afferent(self.main_afferent)
-
         for afferent in minor_afferents:
             self.plug_afferent(afferent)
+
+        self.entrance = self.config.cluster_entrance
+        self.identification = self.config.net.identification
 
     def set_cc_state(self, status):
         self.shm_mgr.set_value(self.SHM_KEY_CC_STATE, status)
@@ -186,27 +188,33 @@ class BaseCore():
         self._epoll.unregister(fd)
         self.afferent_mapping.pop(fd)
 
+    def conn_entrance(self):
+        ''' establish a connection with the entrance of cluster
+        '''
+
+    def establish_conns(self):
+        '''
+        establish connections between remote nodes that we need to
+        communicate with
+        '''
+
+    def fetch_link_table(self):
+        ''' get the link table from the controller node
+        '''
+
     def request_to_join_cluster(self):
         ''' send a request of the node is going to join the cluster
         '''
 
-        entrance = self.config.cluster_entrance
-        identification = self.config.net.identification
-
-        if entrance is None:
-            raise ConfigError("cluster_entrance is not defined")
-        if identification is None:
-            raise ConfigError("identification is not defined")
-
         logger.info('Trying to join cluster...')
 
         content = {
-            'identification': identification,
+            'identification': self.identification,
             'ip': get_localhost_ip(),
             'listen_port': self.config.net.aff_listen_port,
         }
         subject = CCSubjects.JOIN_CLUSTER
-        dest = (entrance.ip, entrance.port)
+        dest = (self.entrance.ip, self.entrance.port)
 
         pkt = UDPPacket()
         pkt.fields = ObjectifiedDict(
@@ -230,19 +238,11 @@ class BaseCore():
         ''' send a request of the node is going to detach from the cluster
         '''
 
-        entrance = self.config.cluster_entrance
-        identification = self.config.net.identification
-
-        if entrance is None:
-            raise ConfigError("cluster_entrance is not defined")
-        if identification is None:
-            raise ConfigError("identification is not defined")
-
         logger.info('Trying to leave cluster...')
 
-        content = {"identification": identification}
+        content = {"identification": self.identification}
         subject = CCSubjects.LEAVE_CLUSTER
-        dest = (entrance.ip, entrance.port)
+        dest = (self.entrance.ip, self.entrance.port)
 
         pkt = UDPPacket()
         pkt.fields = ObjectifiedDict(
