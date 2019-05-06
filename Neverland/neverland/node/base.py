@@ -189,6 +189,7 @@ class BaseNode():
             sig.signal(s, self._handle_term_master)
 
         sig.signal(sig.SIGUSR1, self._handle_siguser1)
+        sig.signal(sig.SIGUSR2, self._handle_siguser2)
 
     def _sig_normal_worker(self):
         sig.signal(sig.SIGHUP, sig.SIG_IGN)
