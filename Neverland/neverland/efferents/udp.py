@@ -2,6 +2,10 @@
 #coding: utf-8
 
 import socket
+import logging
+
+
+logger = logging.getLogger('Main')
 
 
 class UDPTransmitter():
@@ -46,6 +50,14 @@ class UDPTransmitter():
         '''
 
         data = pkt.data
+
+        if data is None or len(data) == 0:
+            logger.error(
+                f'UDPTransmitter encountered a packet with null data'
+                f'from: {pkt.previous_hop}, to: {pkt.next_hop}'
+            )
+            return
+
         target = pkt.next_hop
 
         if isinstance(target, list):

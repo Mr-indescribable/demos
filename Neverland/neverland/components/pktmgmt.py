@@ -13,6 +13,7 @@ from neverland.pkt import UDPPacket
 from neverland.utils import Converter
 from neverland.exceptions import InvalidPkt, SharedMemoryError
 from neverland.node.context import NodeContext
+from neverland.efferents.udp import UDPTransmitter
 from neverland.components.shm import (
     SharedMemoryManager,
     SHMContainerTypes,
@@ -71,8 +72,17 @@ class SpecialPacketManager():
 
     SHM_SOCKET_NAME_TEMPLATE = 'SHM-SpecialPacketManager-%d.socket'
 
-    def __init__(self, config):
+    def __init__(self, config, shm_socket_template=None):
+        ''' Constructor
+
+        :param config: the config
+        :param shm_socket_template: An alternative of SHM_SOCKET_NAME_TEMPLATE.
+        '''
+
         self.config = config
+        self.shm_socket_template =\
+                shm_socket_template or self.SHM_SOCKET_NAME_TEMPLATE
+
         self.pid = NodeContext.pid
 
         self.shm_key_pkts = SHM_KEY_PKTS
@@ -91,7 +101,7 @@ class SpecialPacketManager():
 
         self.shm_mgr = SharedMemoryManager(self.config)
         self.shm_mgr.connect(
-            self.SHM_SOCKET_NAME_TEMPLATE % self.pid
+            self.shm_socket_template % self.pid
         )
         self.shm_mgr.create_key_and_ignore_conflict(
             self.shm_key_pkts,
@@ -127,11 +137,19 @@ class SpecialPacketManager():
 
         # The salt field is bytes, so we cannot serialize it in a JSON.
         # So, we shall encode it into a base64 string before store it.
+        #
+        # Though this fields is useless, but as a low-layer module, the
+        # SpecialPacketManager should not change the content of packets
         fields = pkt.fields.__to_dict__()
         salt = fields.get('salt')
         if salt is not None:
             salt_b64 = base64.b64encode(salt).decode()
             fields.update(salt=salt_b64)
+
+        # As well as the data
+        data = pkt.data
+        if data is not None:
+            data = base64.b64encode(data).decode()
 
         previous_hop = list(pkt.previous_hop)
         next_hop = list(pkt.next_hop)
@@ -147,6 +165,7 @@ class SpecialPacketManager():
                 'fields': fields,
                 'previous_hop': previous_hop,
                 'next_hop': next_hop,
+                'data': data,
             }
         }
 
@@ -182,12 +201,16 @@ class SpecialPacketManager():
             self.remove_pkt(sn)
 
         # and here, we restore the base64 encoded salt into bytes
+        data_b64 = shm_value.get('data')
+        data = base64.b64decode(data_b64)
+
         fields = shm_value.get('fields')
         salt_b64 = fields.get('salt')
         salt = base64.b64decode(salt_b64)
         fields.update(salt=salt)
 
         return UDPPacket(
+            data=data,
             fields=fields,
             type=shm_value.get('type'),
             previous_hop=shm_value.get('previous_hop'),
@@ -278,20 +301,10 @@ class SpecialPacketRepeater():
     we made it standalone, but it still work together with the packet manager.
     '''
 
-    def __init__(
-        self,
-        config,
-        efferent,
-        pkt_mgr,
-        protocol_wrapper,
-        interval_args=(0.5, 1),
-    ):
+    def __init__(self, config, interval_args=(0.5, 1)):
         ''' Constructor
 
         :param config: the config instance
-        :param efferent: an instance of the Efferents
-        :param pkt_mgr: an instance of SpecialPacketManager
-        :param protocol_wrapper: an instance of ProtocolWrappers
         :param interval_args: a pair of number in tuple or list format
                               that will be used in random.uniform to
                               generate a random interval time
@@ -301,9 +314,11 @@ class SpecialPacketRepeater():
         self.config = config
         self.interval_args = interval_args
 
-        self.efferent = efferent
-        self.pkt_mgr = pkt_mgr
-        self.protocol_wrapper = protocol_wrapper
+        self.efferent = UDPTransmitter(self.config)
+
+        shm_socket_tmp = 'SHM-SpecialPacketRepeater-PktMgmt-%d.socket'
+        self.pkt_mgr = SpecialPacketManager(self.config, shm_socket_tmp)
+        self.pkt_mgr.init_shm()
 
     def shutdown(self):
         self.__running = False
@@ -311,15 +326,11 @@ class SpecialPacketRepeater():
     def gen_interval(self):
         return random.uniform(*self.interval_args)
 
-    def repeat_pkt(self, pkt):
-        pkt = self.protocol_wrapper.wrap(pkt)
-        self.efferent.transmit(pkt)
-
     def repeat(self, sn, pkt, current_ts):
         interval = self.gen_interval()
         next_rpt_ts = current_ts + interval
 
-        self.repeat_pkt(pkt)
+        self.efferent.transmit(pkt)
         self.pkt_mgr.set_pkt_last_repeat_time(sn, current_ts)
         self.pkt_mgr.set_pkt_next_repeat_time(sn, next_rpt_ts)
         self.pkt_mgr.increase_pkt_repeated_times(sn)
@@ -370,8 +381,7 @@ class SpecialPacketRepeater():
                 else:
                     self.repeat(sn, pkt, current_ts)
 
-            s = interval_to_next_poll   # too long ...
-            #logger.debug(f'SpecialPacketRepeater is going to sleep {s} sec.')
-            time.sleep(s)
+            time.sleep(interval_to_next_poll)
 
+        self.pkt_mgr.close_shm()
         logger.info(f'SpecialPacketRepeater worker {pid} exits')

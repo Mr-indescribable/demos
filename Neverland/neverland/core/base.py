@@ -192,6 +192,14 @@ class BaseCore():
         ''' establish a connection with the entrance of cluster
         '''
 
+        entrance = (
+            self.config.cluster_entrance.ip,
+            self.config.cluster_entrance.port,
+        )
+        conn = NodeContext.conn_mgr.new_conn(entrance, synchronous=True)
+        # TODO:
+        #     To be continued...
+
     def establish_conns(self):
         '''
         establish connections between remote nodes that we need to

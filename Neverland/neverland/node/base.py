@@ -319,7 +319,7 @@ class BaseNode():
             self.shm_worker_pid = pid
             logger.info(f'Started SharedMemoryManager: {pid}')
 
-    def _start_pkt_rpter(self, pkt_mgr):
+    def _start_pkt_rpter(self):
         '''
         The Repeater needs some components from the node,
         so we shouldn't use this method before components are initialized
@@ -330,12 +330,7 @@ class BaseNode():
             raise OSError('fork failed')
         elif pid == 0:
             self._sig_pkt_rpter_worker()
-            self.pkt_rpter = SpecialPacketRepeater(
-                                 self.config,
-                                 self.efferent,
-                                 pkt_mgr,
-                                 self.protocol_wrapper,
-                             )
+            self.pkt_rpter = SpecialPacketRepeater(self.config)
 
             try:
                 self.pkt_rpter.run()
@@ -389,11 +384,6 @@ class BaseNode():
 
         self.conn_mgr = ConnectionManager(self.config)
         self.conn_mgr.init_shm()
-
-        # The packet repeater is a part of the packet manager, so we will
-        # use it as a normal module. Each worker shall have it's own packet
-        # repeater but not share it like the shared memory manager worker
-        self._start_pkt_rpter(self.pkt_mgr)
 
         pid = os.getpid()
         logger.debug(f'Worker {pid} loaded modules')
@@ -545,6 +535,7 @@ class BaseNode():
 
         self._write_master_pid()
         self._start_shm_mgr()
+        self._start_pkt_rpter()
         self._load_default_cryptor()
 
         # Before we start workers, we need to join the cluster first.

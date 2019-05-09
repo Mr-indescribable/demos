@@ -380,7 +380,7 @@ class ConnectionManager():
 
     def new_conn(
         self, remote, received_iv=None, iv_duration=None,
-        synchronous=False, timeout=2, interval=0.1,
+        synchronous=False, timeout=None, interval=0.1,
     ):
         ''' establish a new connection
 
@@ -472,7 +472,7 @@ class ConnectionManager():
             )
 
         if proactive:
-            # The request is sending, now we wait for the response
+            # The request is sending, now we are going to wait for the response
             if not synchronous:
                 return None
 
@@ -481,6 +481,8 @@ class ConnectionManager():
             # the sn which the establishing connection had, then the connection
             # is established.
             establishing_sn = conn.sn
+
+            timeout = timeout or self.config.net.conn_timeout
             while timeout > 0:
                 conns = self.get_conns()
                 conn2 = conns.get(SLOT_2)
