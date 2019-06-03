@@ -165,9 +165,7 @@ class SpecialPacketManager():
             }
         }
 
-        self.shm_mgr.lock_key(self.shm_key_pkts)
         self.shm_mgr.add_value(self.shm_key_pkts, value)
-        self.shm_mgr.unlock_key(self.shm_key_pkts)
 
         if need_repeat:
             self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [sn])
@@ -218,10 +216,7 @@ class SpecialPacketManager():
 
     def remove_pkt(self, sn):
         self.cancel_repeat(sn)
-
-        self.shm_mgr.lock_key(self.shm_key_pkts)
         self.shm_mgr.remove_value(self.shm_key_pkts, sn)
-        self.shm_mgr.unlock_key(self.shm_key_pkts)
 
         logger.debug(
             f'Removed a special packet, sn: {sn}'
