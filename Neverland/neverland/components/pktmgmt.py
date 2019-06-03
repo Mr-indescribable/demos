@@ -36,36 +36,29 @@ logger = logging.getLogger('PktMgr')
 SHM_KEY_PKTS = 'SpecPktMgr_Packets'
 
 
-# The following SHM_KEY_TMP_* consts are used as string tamplates,
-# The pid shall be passed to render templates into SHM keys.
-#
-# Because of the SpecialPacketRepeater is not a shared worker, each forked node
-# worker shall have its own packet repeater, so we need to distinguish the
-# SHM container by the pid.
-
 # SHM container for storing serial numbers of packets that need
 # to be sent repeatedly
 # data structure:
 #     [sn_0, sn_1]
-SHM_KEY_TMP_PKTS_TO_REPEAT = 'SpecPktRpter-%d_PacketsToRepeat'
+SHM_KEY_PKTS_TO_REPEAT = 'SpecPktRpter_PacketsToRepeat'
 
 # SHM container for storing the last repeat time of packets
 # data structure:
 #     {sn: timestamp}
-SHM_KEY_TMP_LAST_REPEAT_TIME = 'SpecialPktRpter-%d_LastRptTime'
+SHM_KEY_LAST_REPEAT_TIME = 'SpecialPktRpter_LastRptTime'
 
 # similar with the above one, but contains the timestamp of the next repeat time
-SHM_KEY_TMP_NEXT_REPEAT_TIME = 'SpecialPktRpter-%d_NextRptTime'
+SHM_KEY_NEXT_REPEAT_TIME = 'SpecialPktRpter_NextRptTime'
 
 # SHM container for storing how many times packets could be repeated
 # data structure:
 #     {sn: integer}
-SHM_KEY_TMP_MAX_REPEAT_TIMES = 'SpecialPktRpter-%d_MaxRepeatTimes'
+SHM_KEY_MAX_REPEAT_TIMES = 'SpecialPktRpter_MaxRepeatTimes'
 
 # SHM container for storing how many times packets have been repeated
 # data structure:
 #     {sn: integer}
-SHM_KEY_TMP_REPEATED_TIMES = 'SpecialPktRpter-%d_RepeatedTimes'
+SHM_KEY_REPEATED_TIMES = 'SpecialPktRpter_RepeatedTimes'
 
 
 class SpecialPacketManager():
@@ -89,11 +82,11 @@ class SpecialPacketManager():
 
         # These containers are for the SpecialPacketRepeater, the repeater
         # will also access special packets by the manager.
-        self.shm_key_pkts_to_repeat = SHM_KEY_TMP_PKTS_TO_REPEAT % self.pid
-        self.shm_key_last_repeat_time = SHM_KEY_TMP_LAST_REPEAT_TIME % self.pid
-        self.shm_key_next_repeat_time = SHM_KEY_TMP_NEXT_REPEAT_TIME % self.pid
-        self.shm_key_max_repeat_times = SHM_KEY_TMP_MAX_REPEAT_TIMES % self.pid
-        self.shm_key_repeated_times = SHM_KEY_TMP_REPEATED_TIMES % self.pid
+        self.shm_key_pkts_to_repeat = SHM_KEY_PKTS_TO_REPEAT
+        self.shm_key_last_repeat_time = SHM_KEY_LAST_REPEAT_TIME
+        self.shm_key_next_repeat_time = SHM_KEY_NEXT_REPEAT_TIME
+        self.shm_key_max_repeat_times = SHM_KEY_MAX_REPEAT_TIMES
+        self.shm_key_repeated_times = SHM_KEY_REPEATED_TIMES
 
     def init_shm(self):
         ''' initialize the shared memory manager
@@ -131,7 +124,10 @@ class SpecialPacketManager():
     def close_shm(self):
         self.shm_mgr.disconnect()
 
-    def store_pkt(self, pkt, need_repeat=False, max_rpt_times=5, repeat_native_data=True):
+    def store_pkt(
+        self, pkt, need_repeat=False,
+        max_rpt_times=5, repeat_native_data=True
+    ):
         sn = pkt.fields.sn
         type_ = pkt.fields.type
 
