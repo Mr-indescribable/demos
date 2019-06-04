@@ -3,7 +3,8 @@
 		"role": "RELAY",
 		"node_id": 2,
 		"worker_amount": 1,
-		"pid_file": "/tmp/nl_relay.pid"
+		"pid_file": "/tmp/nl_relay.pid",
+		"is_entrance": false
 	},
 
 	"net": {
@@ -50,5 +51,5 @@
 	"cluster_entrance": {
 		"ip": "127.0.0.1",
 		"port": 17151
-	}
+	},
 }

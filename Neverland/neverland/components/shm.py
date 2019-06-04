@@ -88,6 +88,16 @@ The protocol of communication:
         type:
             container type
 
+        size:
+            size of container, only used in creating fifo-queues.
+
+            When the size is given, the size of a fifo-queue will be
+            limited. Once it reached this limitation, the item at the head
+            of the queue will be removed and the new item will be added
+            at the tail of the queue.
+
+            This one is optional, the default size of fifo-queues is 1024.
+
         value:
             value for the container
 
@@ -122,6 +132,7 @@ The protocol of communication:
                 "action": int,
                 "key": str,
                 "type": int,
+                "size": int,
                 "value": same with the container type,
                 "backlogging": bool,
             }
@@ -320,6 +331,8 @@ class SHMContainerTypes(metaclass=MetaEnum):
 
     DICT = 0x21
 
+    FIFO_QUEUE = 0x31
+
 
 PY_TYPE_MAPPING = {
     SHMContainerTypes.STR: str,
@@ -380,8 +393,11 @@ class SharedMemoryManager():
 
         self.__running = False
 
-        # the resource container, all shared memories will be stored in it
+        # the resource container, most of shared memories will be stored in it
         self.resources = {}
+
+        # the fifo-queue container, fifo-queues will be stored in it
+        self.fifo_queues = {}
 
         # locks have been acquired by the client side
         # structure: {resources.key: connection_id}
@@ -554,9 +570,41 @@ class SharedMemoryManager():
         self.locks.pop(key)
         return self._gen_response_json(conn_id=conn_id, succeeded=True)
 
+    def _create_fifo_queue(self, data):
+        ''' creates a fifo queue
+        '''
+
+        key = data.key
+        conn_id = data.conn_id
+        size = data.size
+
+        if key in self.queues:
+            return self._gen_response_json(
+                conn_id=conn_id,
+                succeeded=False,
+                rcode=ReturnCodes.KEY_CONFLICT,
+            )
+
+        queue = {
+            'size': size or 1024,
+            'items': [],
+        }
+
+        self.queues.update(
+            {key: queue}
+        )
+
+        return self._gen_response_json(conn_id=conn_id, succeeded=True)
+
     def handle_create(self, data):
         key = data.key
         conn_id = data.conn_id
+        type_ = data.type
+        value = data.value
+        compatible_type = COMPATIBLE_TYPE_MAPPING.get(type_)
+
+        if type_ == SHMContainerTypes.FIFO_QUEUE:
+            return self._create_fifo_queue(data)
 
         if key in self.resources:
             return self._gen_response_json(
@@ -564,10 +612,6 @@ class SharedMemoryManager():
                 succeeded=False,
                 rcode=ReturnCodes.KEY_CONFLICT,
             )
-
-        type_ = data.type
-        value = data.value
-        compatible_type = COMPATIBLE_TYPE_MAPPING.get(type_)
 
         if value is not None and (
             (type_ not in SHMContainerTypes) or

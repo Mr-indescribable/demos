@@ -10,3 +10,17 @@ class RelayLogicHandler(BaseLogicHandler):
 
     def __init__(self, *args, **kwargs):
         BaseLogicHandler.__init__(self, *args, **kwargs)
+
+    def handle_0x01_join_cluster(self, pkt):
+        ''' handle requests of joining cluster from client nodes
+        '''
+
+    def handle_0x02_leave_cluster(self, pkt):
+        ''' handle requests of joining cluster from client nodes
+        '''
+
+    def handle_resp_0x01_join_cluster(self, pkt, resp_pkt):
+        pass
+
+    def handle_resp_0x02_leave_cluster(self, pkt, resp_pkt):
+        pass

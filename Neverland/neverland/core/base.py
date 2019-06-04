@@ -68,6 +68,9 @@ class BaseCore():
     # enumerated in neverland.core.state.ClusterControllingStates
     SHM_KEY_CC_STATE = 'Core_CCState'
 
+    # The cache of fast return
+    SHM_KEY_FAST_RETURN_CACHE = 'Core_FastReturnCache'
+
     def __init__(
         self, config, efferent, logic_handler,
         protocol_wrapper, main_afferent, minor_afferents=tuple(),
@@ -104,17 +107,6 @@ class BaseCore():
         self.entrance = self.config.cluster_entrance
         self.identification = self.config.net.identification
 
-    def set_cc_state(self, status):
-        self.shm_mgr.set_value(self.SHM_KEY_CC_STATE, status)
-
-    def get_cc_state(self):
-        resp = self.shm_mgr.read_key(self.SHM_KEY_CC_STATE)
-        return resp.get('value')
-
-    @property
-    def cc_state(self):
-        return self.get_cc_state()
-
     def init_shm(self):
         self.shm_mgr.connect(
             self.SHM_SOCKET_NAME_TEMPLATE % NodeContext.pid
@@ -129,11 +121,26 @@ class BaseCore():
             SHMContainerTypes.INT,
             CCStates.INIT,
         )
+        self.shm_mgr.create_key_and_ignore_conflict(
+            self.SHM_KEY_FAST_RETURN_CACHE,
+            SHMContainerTypes.FIFO_QUEUE,
+        )
 
         logger.debug(f'init_shm for core of worker {NodeContext.pid} has done')
 
     def close_shm(self):
         self.shm_mgr.disconnect()
+
+    def set_cc_state(self, status):
+        self.shm_mgr.set_value(self.SHM_KEY_CC_STATE, status)
+
+    def get_cc_state(self):
+        resp = self.shm_mgr.read_key(self.SHM_KEY_CC_STATE)
+        return resp.get('value')
+
+    @property
+    def cc_state(self):
+        return self.get_cc_state()
 
     def self_allocate_core_id(self):
         ''' Let the core pick up an id for itself
@@ -270,16 +277,52 @@ class BaseCore():
         logger.info('[Node Status] WAITING_FOR_LEAVE')
         self.set_cc_state(CCStates.WAITING_FOR_LEAVE)
 
+    def fast_return(self, pkt):
+        ''' Fast Return
+
+        Fast return is a feature to handle lost responses.
+
+        In the communication of Neverland cluster, the requester will repeat
+        its request if there is no response, and the responder will only
+        response one time when it received a request.
+
+        Due to the unique ID in each packet, we can simply cache the response
+        packets that has been sent to the requester and return the cached
+        packet again when we got a repeated request.
+        '''
+
+    def _fast_return_cache(self, pkt):
+        ''' Caches a packet for fast_return
+
+        Currently, this method only caches responses of CTRL packets, because
+        only this kind of packets need to be cached.
+        '''
+
+        if pkt.fields.type != PktTypes.CTRL:
+            return
+
+        if pkt.fields.subject != CCSubjects.RESPONSE:
+            return
+
+    def _could_be_fast_returned(self, pkt):
+        ''' determines if the packet could be fast returned
+        '''
+
+        return False
+
     def handle_pkt(self, pkt):
         try:
             pkt = self.protocol_wrapper.unwrap(pkt)
             if not pkt.valid:
                 return
 
+            if self._could_fast_return(pkt):
+                self._fast_return(pkt)
+
             pkt = self.logic_handler.handle_logic(pkt)
 
         # Actually we have catched all InvalidPkt in protocol_wrapper,
-        # but maybe we will use it in future.
+        # but maybe we will use it in the future.
         except (DropPacket, InvalidPkt) as e:
             return
 
