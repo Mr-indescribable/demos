@@ -248,6 +248,9 @@ class SHMTest(unittest.TestCase):
         shm_mgr.disconnect()
         shm_mgr1.disconnect()
 
+    def test_3_fifo(self):
+        pass
+
     def test_999_backlog(self):
         global do_not_kill_shm_worker
 

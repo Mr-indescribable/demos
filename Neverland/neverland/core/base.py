@@ -304,7 +304,7 @@ class BaseCore():
         if pkt.fields.subject != CCSubjects.RESPONSE:
             return
 
-    def _could_be_fast_returned(self, pkt):
+    def _fast_returnable(self, pkt):
         ''' determines if the packet could be fast returned
         '''
 
@@ -316,7 +316,7 @@ class BaseCore():
             if not pkt.valid:
                 return
 
-            if self._could_fast_return(pkt):
+            if self._fast_returnable(pkt):
                 self._fast_return(pkt)
 
             pkt = self.logic_handler.handle_logic(pkt)

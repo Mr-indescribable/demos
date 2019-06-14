@@ -257,17 +257,23 @@ class Actions(metaclass=MetaEnum):
     # update a dict container
     DICT_UPDATE = 0x06
 
+    # append a value into a FIFO queue
+    FIFO_APPEND = 0x11
+
+    # pop a value from a FIFO queue
+    FIFO_POP = 0x12
+
     # completely remove a key from stored resources
-    CLEAN = 0x11
+    CLEAN = 0x41
 
     # remove a value from a multi-value container
-    REMOVE = 0x12
+    REMOVE = 0x42
 
     # acquire the lock of a container and lock it
-    LOCK = 0x21
+    LOCK = 0x51
 
     # release a lock
-    UNLOCK = 0x22
+    UNLOCK = 0x52
 
     # create a new connection
     CONNECT = 0xf0
@@ -287,6 +293,7 @@ ACTIONS_2_HANDLE_LOCK = [
     Actions.UNLOCK,
 ]
 
+
 class ReturnCodes(metaclass=MetaEnum):
 
     # request completed successfully
@@ -302,11 +309,13 @@ class ReturnCodes(metaclass=MetaEnum):
     # or value type is not supported.
     TYPE_ERROR = 0x12
 
+    FIFO_ERROR = 0x21
+
     # The container which client side is accessing has been locked
-    LOCKED = 0x21
+    LOCKED = 0x51
 
     # The container which client side is trying to unlock is not locked
-    NOT_LOCKED = 0x22
+    NOT_LOCKED = 0x52
 
     # something bad happend :(
     UNKNOWN_ERROR = 0xff
@@ -317,7 +326,7 @@ class SHMContainerTypes(metaclass=MetaEnum):
     # Actually, we treat all types as "containers". And here, the difference
     # between STR and LIST type is only the size of the container, STR can
     # contain only one value but LIST can contain multiple, that's all.
-    # So, we name these types as "single-value container".
+    # So, we name some of these types as "single-value container".
     #
     # But the difference still makes things different, these single-value
     # containers shall not be supported by Actions.ADD and Actions.REMOVE
@@ -394,13 +403,15 @@ class SharedMemoryManager():
         self.__running = False
 
         # the resource container, most of shared memories will be stored in it
+        # structure: {key: container}
         self.resources = {}
 
         # the fifo-queue container, fifo-queues will be stored in it
+        # structure: {key: {'items': [], 'size': int}}
         self.fifo_queues = {}
 
         # locks have been acquired by the client side
-        # structure: {resources.key: connection_id}
+        # structure: {key: connection_id}
         self.locks = {}
 
         # connection container, all established connections will be stored in it
@@ -518,6 +529,32 @@ class SharedMemoryManager():
             }
         }
 
+    def _create_fifo_queue(self, data):
+        ''' creates a fifo queue
+        '''
+
+        key = data.key
+        conn_id = data.conn_id
+        size = data.size
+
+        if key in self.fifo_queues:
+            return self._gen_response_json(
+                conn_id=conn_id,
+                succeeded=False,
+                rcode=ReturnCodes.KEY_CONFLICT,
+            )
+
+        queue = {
+            'size': size or 1024,
+            'items': [],
+        }
+
+        self.fifo_queues.update(
+            {key: queue}
+        )
+
+        return self._gen_response_json(conn_id=conn_id, succeeded=True)
+
     def handle_connect(self, data):
         resp_sock_path = os.path.join(self.socket_dir, data.socket)
         conn_id = self.gen_conn_id()
@@ -568,32 +605,6 @@ class SharedMemoryManager():
             )
 
         self.locks.pop(key)
-        return self._gen_response_json(conn_id=conn_id, succeeded=True)
-
-    def _create_fifo_queue(self, data):
-        ''' creates a fifo queue
-        '''
-
-        key = data.key
-        conn_id = data.conn_id
-        size = data.size
-
-        if key in self.queues:
-            return self._gen_response_json(
-                conn_id=conn_id,
-                succeeded=False,
-                rcode=ReturnCodes.KEY_CONFLICT,
-            )
-
-        queue = {
-            'size': size or 1024,
-            'items': [],
-        }
-
-        self.queues.update(
-            {key: queue}
-        )
-
         return self._gen_response_json(conn_id=conn_id, succeeded=True)
 
     def handle_create(self, data):
@@ -761,6 +772,65 @@ class SharedMemoryManager():
             succeeded=True,
         )
 
+    def handle_fifo_append(self, data):
+        key = data.key
+        value = data.value
+        conn_id = data.conn_id
+
+        if key not in self.fifo_queues:
+            return self._gen_response_json(
+                conn_id=conn_id,
+                succeeded=False,
+                rcode=ReturnCodes.KEY_ERROR,
+            )
+
+        queue = self.fifo_queues[key]
+        q_items = queue['items']
+        q_len = len(q_items)
+        q_size = queue['size']
+
+        if q_len == q_size:
+            try:
+                q_items.pop(0)
+            except IndexError:
+                # In this case, the size of FIFO queue must be 0.
+                # Actually, it could not happen.
+                return self._gen_response_json(
+                    conn_id=conn_id,
+                    succeeded=False,
+                    rcode=ReturnCodes.FIFO_ERROR,
+                )
+
+        q_items.append(value)
+        return self._gen_response_json(conn_id=conn_id, succeeded=True)
+
+    def handle_fifo_pop(self, data):
+        key = data.key
+        value = data.value
+        conn_id = data.conn_id
+
+        if key not in self.fifo_queues:
+            return self._gen_response_json(
+                conn_id=conn_id,
+                succeeded=False,
+                rcode=ReturnCodes.KEY_ERROR,
+            )
+
+        queue = self.fifo_queues[key]
+        q_items = queue['items']
+        q_len = len(q_items)
+
+        if q_len == 0:
+            value = None
+        else:
+            value = q_items.pop(0)
+
+        return self._gen_response_json(
+            conn_id=conn_id,
+            succeeded=True,
+            value=value,
+        )
+
     def handle_clean(self, data):
         key = data.key
         value = data.value
@@ -813,9 +883,9 @@ class SharedMemoryManager():
 
         :param data: the data of request
         :param data_parsed: Tell the method if the data has been parsed.
-                            If it has not been parsed then the data shall
+                            If it has not been parsed then the data should
                             be bytes. If it has been parsed, then the data
-                            shall be an ObjectifiedDict
+                            should be an ObjectifiedDict instance
 
         :param backlogging: To override the backlogging option in the data.
         '''
@@ -872,6 +942,10 @@ class SharedMemoryManager():
             return self.handle_dict_get(data)
         if data.action == Actions.DICT_UPDATE:
             return self.handle_dict_update(data)
+        if data.action == Actions.FIFO_APPEND:
+            return self.handle_fifo_append(data)
+        if data.action == Actions.FIFO_POP:
+            return self.handle_fifo_pop(data)
         if data.action == Actions.CLEAN:
             return self.handle_clean(data)
         if data.action == Actions.REMOVE:
@@ -1215,6 +1289,31 @@ class SharedMemoryManager():
             action=Actions.REMOVE,
             key=key,
             value=vl,
+            backlogging=backlogging,
+        )
+        return self.read_response(self.current_connection.conn_id)
+
+    def fifo_pop(self, key, backlogging=True):
+        ''' pops one value from a FIFO queue
+        '''
+
+        self.send_request(
+            conn_id=self.current_connection.conn_id,
+            action=Actions.FIFO_POP,
+            key=key,
+            backlogging=backlogging,
+        )
+        return self.read_response(self.current_connection.conn_id)
+
+    def fifo_append(self, key, value, backlogging=True):
+        ''' appends one value into a FIFO queue
+        '''
+
+        self.send_request(
+            conn_id=self.current_connection.conn_id,
+            action=Actions.FIFO_APPEND,
+            key=key,
+            value=value,
             backlogging=backlogging,
         )
         return self.read_response(self.current_connection.conn_id)
