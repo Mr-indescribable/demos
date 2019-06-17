@@ -121,7 +121,7 @@ def test_connection():
 def test_locking():
     global conn_id
 
-    KEY = 'something'
+    KEY = 'test-locking'
 
     data = {
         'conn_id': conn_id,
@@ -146,12 +146,17 @@ def test_locking():
 
 
 @auto_connect
-def test_create():
+def test_create_normal_types():
     global conn_id
 
-    KEY_PREFIX = 'create-'
+    KEY_PREFIX = 'test-normal-create-'
 
     for tp_name, tp_value in SHMContainerTypes:
+        if tp_value >= SHMContainerTypes.FIFO_QUEUE:
+            # Only test normal container types here.
+            # Types after FIFO_QUEUE should be tested in other functions.
+            continue
+
         key = KEY_PREFIX + str(tp_value)
         data = {
             'conn_id': conn_id,
@@ -164,18 +169,11 @@ def test_create():
 
         assert resp.data.succeeded is True
 
-        # all non queue types that should be stored in shm_mgr.resources
-        if tp_value < SHMContainerTypes.FIFO_QUEUE:
-            assert key in shm_mgr.resources
-            assert isinstance(
-                shm_mgr.resources.get(key),
-                PY_TYPE_MAPPING.get(tp_value),
-            )
-        elif tp_value == SHMContainerTypes.FIFO_QUEUE:
-            assert key in shm_mgr.fifo_queues
-
-            # default size of FIFO queues
-            assert shm_mgr.fifo_queues.get(key).get('size') == 1024
+        assert key in shm_mgr.resources
+        assert isinstance(
+            shm_mgr.resources.get(key),
+            PY_TYPE_MAPPING.get(tp_value),
+        )
 
         # Test key confliction
         resp = _handle_request('handle_create', data)
@@ -183,11 +181,10 @@ def test_create():
         assert resp.data.rcode == ReturnCodes.KEY_CONFLICT
 
 
-@auto_connect
-def _test_read(type_, key, data):
+def _test_normal_rw(type_, key, value):
     global conn_id
 
-    KEY_PREFIX = 'read-'
+    KEY_PREFIX = 'rw-'
     key = KEY_PREFIX + key
 
     data = {
@@ -198,3 +195,197 @@ def _test_read(type_, key, data):
     }
     resp = _handle_request('handle_create', data)
     assert resp.data.succeeded is True
+
+    # single-value containers
+    if type_ <= SHMContainerTypes.BOOL:
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.SET,
+            'key': key,
+            'type': type_,
+            'value': value,
+        }
+        resp = _handle_request('handle_set', data)
+        assert resp.data.succeeded is True
+
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.READ,
+            'key': key,
+        }
+        resp = _handle_request('handle_read', data)
+        assert resp.data.succeeded is True
+        assert resp.data.value == value
+
+    # multi-value containers
+    elif type_ <= SHMContainerTypes.DICT:
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.ADD,
+            'key': key,
+            'type': type_,
+            'value': value,
+        }
+        resp = _handle_request('handle_add', data)
+        assert resp.data.succeeded is True
+
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.READ,
+            'key': key,
+        }
+        resp = _handle_request('handle_read', data)
+        assert resp.data.succeeded is True
+
+        orig_value = value
+        resp_value = resp.data.value
+
+        if type_ == SHMContainerTypes.SET:
+            orig_value = list(value)
+        elif type_ == SHMContainerTypes.DICT:
+            resp_value = resp_value.__to_dict__()
+
+        assert resp_value == orig_value
+    else:
+        raise Exception('Unexpected container type')
+
+
+@auto_connect
+def test_str_rw():
+    _test_normal_rw(
+        SHMContainerTypes.STR,
+        'test-str',
+        'String-value',
+    )
+
+
+@auto_connect
+def test_int_rw():
+    _test_normal_rw(
+        SHMContainerTypes.INT,
+        'test-int',
+        1024,
+    )
+
+
+@auto_connect
+def test_float_rw():
+    _test_normal_rw(
+        SHMContainerTypes.FLOAT,
+        'test-float',
+        0.001,
+    )
+
+
+@auto_connect
+def test_bool_rw():
+    _test_normal_rw(
+        SHMContainerTypes.BOOL,
+        'test-bool',
+        True,
+    )
+
+
+@auto_connect
+def test_set_rw():
+    _test_normal_rw(
+        SHMContainerTypes.SET,
+        'test-set',
+        {1, 2, 3, 4},
+    )
+
+
+@auto_connect
+def test_list_rw():
+    _test_normal_rw(
+        SHMContainerTypes.LIST,
+        'test-list',
+        [1, 2, 3, 4],
+    )
+
+
+@auto_connect
+def test_dict_rw():
+    _test_normal_rw(
+        SHMContainerTypes.DICT,
+        'test-dict',
+        {'a': 1, 'b': 2},
+    )
+
+
+@auto_connect
+def test_fifo_create():
+    global conn_id
+
+    key = 'test-fifo-create'
+    data = {
+        'conn_id': conn_id,
+        'action': Actions.CREATE,
+        'key': key,
+        'type': SHMContainerTypes.FIFO_QUEUE,
+        # 'size': None,
+    }
+    resp = _handle_request('handle_create', data)
+
+    assert resp.data.succeeded is True
+    assert key in shm_mgr.fifo_queues
+
+    # default size of fifo-queues
+    assert shm_mgr.fifo_queues.get(key).get('size') == 1024
+
+    ## Test again with a size argument
+    size = 100
+    key = 'test-fifo-create-with-size'
+    data = {
+        'conn_id': conn_id,
+        'action': Actions.CREATE,
+        'key': key,
+        'type': SHMContainerTypes.FIFO_QUEUE,
+        'size': size,
+    }
+    resp = _handle_request('handle_create', data)
+
+    assert resp.data.succeeded is True
+    assert key in shm_mgr.fifo_queues
+
+    # default size of fifo-queues
+    assert shm_mgr.fifo_queues.get(key).get('size') == size
+
+
+@auto_connect
+def test_fifo_rw():
+    global conn_id
+
+    key = 'test-fifo-rw'
+    values = [1, 2, 3, 4]
+
+    data = {
+        'conn_id': conn_id,
+        'action': Actions.CREATE,
+        'key': key,
+        'type': SHMContainerTypes.FIFO_QUEUE,
+    }
+    resp = _handle_request('handle_create', data)
+    assert resp.data.succeeded is True
+
+    for value in values:
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.FIFO_APPEND,
+            'key': key,
+            'value': value
+        }
+        resp = _handle_request('handle_fifo_append', data)
+        assert resp.data.succeeded is True
+
+    for value in values:
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.FIFO_POP,
+            'key': key,
+        }
+        resp = _handle_request('handle_fifo_pop', data)
+        assert resp.data.succeeded is True
+
+        # First In First Out
+        assert resp.data.value == value
