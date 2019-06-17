@@ -34,6 +34,9 @@ preload_funcs = {}
 preload_funcs.update(openssl_preload_func_map)
 
 
+ALL_CIPHERS = list(supported_ciphers.keys())
+
+
 def preload_crypto_lib(cipher_name, libpath=None):
     preload_func = preload_funcs.get(cipher_name)
     if preload_func is not None:

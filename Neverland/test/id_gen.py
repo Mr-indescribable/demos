@@ -18,7 +18,7 @@ class IDGTest(unittest.TestCase):
         current = None
         previous = None
 
-        for _ in (range(1000000)):
+        for _ in range(1000000):
             id_ = id_generator.gen()
 
             previous = current

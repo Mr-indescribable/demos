@@ -12,14 +12,14 @@ from neverland.components.shm import (
 )
 
 
-shm_config_entity = {
+shm_config_dict = {
     'shm': {
         'socket_dir': '/tmp/nl-shm-test',
         'manager_socket_name': 'manager.socket',
     }
 }
 
-shm_config = JsonConfig(**shm_config_entity)
+shm_config = JsonConfig(**shm_config_dict)
 shm_mgr = SharedMemoryManager(shm_config)
 
 
