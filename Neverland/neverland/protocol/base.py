@@ -171,12 +171,14 @@ class BaseProtocolWrapper():
         data_pkt_fmt,
         ctrl_pkt_fmt,
         conn_ctrl_pkt_fmt,
+        conn_ctrl_ack_pkt_fmt,
     ):
         self.config = config
         self.header_fmt = header_fmt
         self.data_pkt_fmt = data_pkt_fmt
         self.ctrl_pkt_fmt = ctrl_pkt_fmt
         self.conn_ctrl_pkt_fmt = conn_ctrl_pkt_fmt
+        self.conn_ctrl_ack_pkt_fmt = conn_ctrl_ack_pkt_fmt
 
         self.header_fmt.gen_fmt(config)
         self.data_pkt_fmt.gen_fmt(config)
@@ -187,6 +189,7 @@ class BaseProtocolWrapper():
             PktTypes.DATA: self.data_pkt_fmt,
             PktTypes.CTRL: self.ctrl_pkt_fmt,
             PktTypes.CONN_CTRL: self.conn_ctrl_pkt_fmt,
+            PktTypes.CONN_CTRL_ACK: self.conn_ctrl_ack_pkt_fmt,
         }
 
         self.complexed_fmt_mapping = dict()
@@ -280,8 +283,6 @@ class BaseProtocolWrapper():
             return struct.pack('B', value)
         if field_type == FieldTypes.STRUCT_U_INT:
             return struct.pack('I', value)
-        if field_type == FieldTypes.STRUCT_U_LONG:
-            return struct.pack('L', value)
         if field_type == FieldTypes.STRUCT_U_LONG_LONG:
             return struct.pack('Q', value)
         if field_type == FieldTypes.STRUCT_IPV4_SA:
@@ -291,7 +292,7 @@ class BaseProtocolWrapper():
             return struct.pack('!BBBBH', *ip, port)
         if field_type == FieldTypes.STRUCT_IPV6_SA:
             # TODO ipv6 support
-            return None
+            raise NotImplemented
         if field_type == FieldTypes.PY_BYTES:
             if isinstance(value, bytes):
                 return value

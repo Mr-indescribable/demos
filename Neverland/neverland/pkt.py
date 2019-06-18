@@ -24,8 +24,7 @@ class FieldTypes(metaclass=MetaEnum):
 
     STRUCT_U_CHAR = 0x11
     STRUCT_U_INT = 0x12
-    STRUCT_U_LONG = 0x13
-    STRUCT_U_LONG_LONG = 0x14
+    STRUCT_U_LONG_LONG = 0x13
 
     STRUCT_IPV4_SA = 0x31
     STRUCT_IPV6_SA = 0x32

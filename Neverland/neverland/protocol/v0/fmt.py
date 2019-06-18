@@ -42,7 +42,7 @@ class HeaderFormat(BasePktFormat):
             # Allows users to config it in the config file.
             # This should be unified in the community.
             'salt': FieldDefinition(
-                        length        = config.salt_len or 8,
+                        length        = config.net.crypto.salt_len or 8,
                         type          = FieldTypes.PY_BYTES,
                         calculator    = salt_calculator,
                         calc_priority = 0x00,

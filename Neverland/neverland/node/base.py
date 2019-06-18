@@ -37,6 +37,7 @@ from neverland.protocol.v0.fmt import (
     DataPktFormat,
     CtrlPktFormat,
     ConnCtrlPktFormat,
+    ConnCtrlAckPktFormat,
 )
 from neverland.components.idgeneration import IDGenerator
 from neverland.components.shm import SharedMemoryManager
@@ -361,6 +362,7 @@ class BaseNode():
                                     DataPktFormat,
                                     CtrlPktFormat,
                                     ConnCtrlPktFormat,
+                                    ConnCtrlAckPktFormat,
                                 )
 
         self.logic_handler_cls = LOGIC_HANDLER_MAPPING[self.role]
