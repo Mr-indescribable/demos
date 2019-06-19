@@ -1,12 +1,16 @@
 #!/usr/bin/python3.6
 #coding: utf-8
 
+import os
 import json
 import struct
 
 import pytest
 
 from neverland.config import JsonConfig
+from neverland.utils import ObjectifiedDict
+from neverland.node.context import NodeContext
+from neverland.components.idgeneration import IDGenerator
 from neverland.pkt import UDPPacket, PktTypes, FieldTypes
 from neverland.protocol.v0.wrapper import ProtocolWrapper
 from neverland.protocol.v0.fmt import (
@@ -39,7 +43,7 @@ proto_wrapper = ProtocolWrapper(
 
 
 def _test_pack_numeral_type(type_, struct_fmt, value, v_uplimit):
-    ''' do a single test with a numeral type
+    ''' do a single test of packing with a numeral type
 
     :param type_: field type of the value, enumerated in FieldTypes
     :param struct_fmt: the format argument of struct.pack
@@ -138,13 +142,129 @@ def test_pack_field_py_dict():
     assert res == expected
 
 
-def test_unpack_field():
-    pass
+def _test_unpack_numeral_type(type_, struct_fmt, data, length):
+    ''' do a single test of unpacking with a numeral type
+
+    :param type_: field type of the data, enumerated in FieldTypes
+    :param struct_fmt: the format argument of struct.pack
+    :param data: the data to unpack
+    :param length: the length of current type
+    '''
+
+    if len(data) == length:
+        res = proto_wrapper._unpack_field(data, type_)
+        expected = struct.unpack(struct_fmt, data)[0]
+        assert res == expected
+    else:
+        with pytest.raises(struct.error):
+            proto_wrapper._unpack_field(data, type_)
 
 
-def test_make_pkt():
-    pass
+def test_unpack_field_u_char():
+    length = 1
+
+    for l in range(0, length + 2):
+        _test_unpack_numeral_type(
+            type_      = FieldTypes.STRUCT_U_CHAR,
+            struct_fmt = 'B',
+            data       = os.urandom(l),
+            length     = length,
+        )
 
 
-def test_parse_pkt():
-    pass
+def test_unpack_field_u_int():
+    length = 4
+
+    for l in range(0, length + 2):
+        _test_unpack_numeral_type(
+            type_      = FieldTypes.STRUCT_U_INT,
+            struct_fmt = 'I',
+            data       = os.urandom(l),
+            length     = length,
+        )
+
+
+def test_unpack_field_u_char():
+    length = 8
+
+    for l in range(0, length + 2):
+        _test_unpack_numeral_type(
+            type_      = FieldTypes.STRUCT_U_LONG_LONG,
+            struct_fmt = 'Q',
+            data       = os.urandom(l),
+            length     = length,
+        )
+
+
+def _init_node_context():
+    ''' initialize the NodeContext for the make_udp_pkt method
+
+    The make_udp_pkt method requires some information/component in the
+    NodeContext, it cannot work correctly without these things.
+    '''
+
+    NodeContext.local_ip = '127.0.0.1'
+    NodeContext.listen_port = 40000
+    NodeContext.id_generator = IDGenerator(0x01, 0x01)
+
+
+def test_make_n_parse_udp_pkt():
+    # make_udp_pkt needs it
+    _init_node_context()
+
+    # Prepare 4 types of packets
+    data_pkt_fields = {
+        'type': PktTypes.DATA,
+        'dest': ('127.0.0.1', 40000),
+        'data': os.urandom(40000),
+    }
+    data_pkt = UDPPacket()
+    data_pkt.fields = ObjectifiedDict(**data_pkt_fields)
+
+    ctrl_pkt_fields = {
+        'type': PktTypes.CTRL,
+        'dest': ('127.0.0.1', 40000),
+        'subject': 0x01,
+        'content': {'a': 1, 'b': True},
+    }
+    ctrl_pkt = UDPPacket()
+    ctrl_pkt.fields = ObjectifiedDict(**ctrl_pkt_fields)
+
+    conn_ctrl_pkt_fields = {
+        'type': PktTypes.CONN_CTRL,
+        'dest': ('127.0.0.1', 40000),
+        'communicating': 0x01,
+        'iv_changed': 0x01,
+        'iv_duration': 0xFFFFFFFFF,
+        'iv': os.urandom(wrapper_config.net.crypto.iv_len),
+    }
+    conn_ctrl_pkt = UDPPacket()
+    conn_ctrl_pkt.fields = ObjectifiedDict(**conn_ctrl_pkt_fields)
+
+    conn_ctrl_ack_pkt_fields = {
+        'type': PktTypes.CONN_CTRL_ACK,
+        'dest': ('127.0.0.1', 40000),
+        'resp_sn': 1,
+    }
+    conn_ctrl_ack_pkt = UDPPacket()
+    conn_ctrl_ack_pkt.fields = ObjectifiedDict(**conn_ctrl_ack_pkt_fields)
+
+    pkts = {
+        PktTypes.DATA: data_pkt,
+        PktTypes.CTRL: ctrl_pkt,
+        PktTypes.CONN_CTRL: conn_ctrl_pkt,
+        PktTypes.CONN_CTRL_ACK: conn_ctrl_ack_pkt,
+    }
+
+    # preparation completed, now we do the test
+    for pkt_type, body_fmt in proto_wrapper._body_fmt_mapping.items():
+        original_pkt = pkts.get(pkt_type)
+        udp_data = proto_wrapper.make_udp_pkt(original_pkt, body_fmt)
+
+        pkt_to_parse = UDPPacket()
+        pkt_to_parse.data = udp_data
+        parsed_fields, parsed_byte_fields = \
+                proto_wrapper.parse_udp_pkt(pkt_to_parse)
+
+        proto_wrapper._validate_pkt(parsed_fields, parsed_byte_fields)
+        assert original_pkt.fields.__to_dict__() == parsed_fields.__to_dict__()

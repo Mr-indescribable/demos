@@ -122,6 +122,7 @@ class DataPktFormat(BasePktFormat):
         cls.__fmt__ = {
             # just the data
             'data': FieldDefinition(
+                        # This length means "Use all of these bytes remaining."
                         length = UDP_DATA_MAX_LEN,
                         type   = FieldTypes.PY_BYTES,
                     ),
@@ -207,8 +208,7 @@ class ConnCtrlAckPktFormat(BasePktFormat):
         cls.__fmt__ = {
             # The serial number of the received (at remote) CONN_CTRL packet
             'resp_sn': FieldDefinition(
-                           length     = 8,
-                           type       = FieldTypes.STRUCT_U_LONG_LONG,
-                           calculator = sn_calculator,
+                           length = 8,
+                           type   = FieldTypes.STRUCT_U_LONG_LONG,
                        ),
         }

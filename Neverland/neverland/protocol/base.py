@@ -184,6 +184,7 @@ class BaseProtocolWrapper():
         self.data_pkt_fmt.gen_fmt(config)
         self.ctrl_pkt_fmt.gen_fmt(config)
         self.conn_ctrl_pkt_fmt.gen_fmt(config)
+        self.conn_ctrl_ack_pkt_fmt.gen_fmt(config)
 
         self._body_fmt_mapping = {
             PktTypes.DATA: self.data_pkt_fmt,
@@ -234,6 +235,7 @@ class BaseProtocolWrapper():
                 if definition.calculator is None:
                     if definition.default is not None:
                         value = definition.default
+                        pkt.fields.__update__(**{field_name: value})
                     else:
                         raise PktWrappingError(
                             f'Field {field_name} has no value '
@@ -389,8 +391,6 @@ class BaseProtocolWrapper():
             return struct.unpack('B', data)[0]
         if field_type == FieldTypes.STRUCT_U_INT:
             return struct.unpack('I', data)[0]
-        if field_type == FieldTypes.STRUCT_U_LONG:
-            return struct.unpack('L', data)[0]
         if field_type == FieldTypes.STRUCT_U_LONG_LONG:
             return struct.unpack('Q', data)[0]
         if field_type == FieldTypes.STRUCT_IPV4_SA:

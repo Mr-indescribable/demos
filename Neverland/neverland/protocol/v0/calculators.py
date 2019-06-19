@@ -64,7 +64,7 @@ def mac_calculator(pkt, header_fmt, body_fmt):
         byte_value = getattr(pkt.byte_fields, field_name)
         data_2_hash += byte_value
 
-    return HashTools.sha256(data_2_hash)
+    return HashTools.sha256(data_2_hash).encode()
 
 
 def time_calculator(*_):
