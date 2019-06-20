@@ -184,7 +184,7 @@ def test_unpack_field_u_int():
         )
 
 
-def test_unpack_field_u_char():
+def test_unpack_field_u_long_long():
     length = 8
 
     for l in range(0, length + 2):
@@ -194,6 +194,46 @@ def test_unpack_field_u_char():
             data       = os.urandom(l),
             length     = length,
         )
+
+
+def test_unpack_field_ipv4_sa():
+    ip = '127.0.0.1'
+    port = 12345
+
+    packed_sa = proto_wrapper._pack_field(
+        (ip, port), FieldTypes.STRUCT_IPV4_SA
+    )
+
+    res = proto_wrapper._unpack_field(
+        packed_sa, FieldTypes.STRUCT_IPV4_SA
+    )
+
+    assert (ip, port) == res
+
+
+def test_unpack_field_ipv6_sa():
+    # NotImplemented
+    pass
+
+
+def test_unpack_field_py_bytes():
+    data = b'byteeeeeeeeeeeeeeee'
+    res = proto_wrapper._unpack_field(data, FieldTypes.PY_BYTES)
+    assert data == res
+
+
+def test_unpack_field_py_dict():
+    data = {
+        'a': 1,
+        'b': None,
+        'c': [1, 2, 3],
+        'd': {
+            'e': True,
+        }
+    }
+    packed_dict = proto_wrapper._pack_field(data, FieldTypes.PY_DICT)
+    res = proto_wrapper._unpack_field(packed_dict, FieldTypes.PY_DICT)
+    assert data == res
 
 
 def _init_node_context():
