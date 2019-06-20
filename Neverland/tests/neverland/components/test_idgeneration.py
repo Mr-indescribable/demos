@@ -6,15 +6,12 @@ from neverland.components.idgeneration import IDGenerator
 
 
 def test_id_gen():
+    id_pool = set()
     generator = IDGenerator(0x01, 0x01)
 
-    current = None
-    previous = None
-
-    for _ in range(10000000):  # 10M times
+    # 10M times, this will eat up about 600MB memory.
+    for _ in range(10000000):
         id_ = generator.gen()
+        assert id_ not in id_pool
 
-        previous = current
-        current = id_
-
-        assert previous != current
+        id_pool.add(id_)
