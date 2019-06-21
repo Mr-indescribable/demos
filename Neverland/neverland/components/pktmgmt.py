@@ -76,7 +76,7 @@ class SpecialPacketManager():
         self.shm_socket_template =\
                 shm_socket_template or self.SHM_SOCKET_NAME_TEMPLATE
 
-        self.pid = NodeContext.pid
+        self.pid = os.getpid()
 
         self.shm_key_pkts = SHM_KEY_PKTS
 
@@ -124,17 +124,14 @@ class SpecialPacketManager():
     def close_shm(self):
         self.shm_mgr.disconnect()
 
-    def store_pkt(
-        self, pkt, need_repeat=False,
-        max_rpt_times=5, repeat_native_data=True
-    ):
+    def store_pkt(self, pkt, need_repeat=False, max_rpt_times=5):
         sn = pkt.fields.sn
         type_ = pkt.fields.type
 
         # The salt field is bytes, so we cannot serialize it in a JSON.
         # So, we shall encode it into a base64 string before store it.
         #
-        # Though this fields is useless, but as a low-layer module, the
+        # Though this fields is useless, but as a low-level module, the
         # SpecialPacketManager should not change the content of packets
         fields = pkt.fields.__to_dict__()
         salt = fields.get('salt')
@@ -142,7 +139,12 @@ class SpecialPacketManager():
             salt_b64 = base64.b64encode(salt).decode()
             fields.update(salt=salt_b64)
 
-        # As well as the data
+        # As well as the mac and the data
+        mac = fields.get('mac')
+        if mac is not None:
+            mac_b64 = base64.b64encode(mac).decode()
+            fields.update(mac=mac_b64)
+
         data = pkt.data
         if data is not None:
             data = base64.b64encode(data).decode()
@@ -195,13 +197,18 @@ class SpecialPacketManager():
             self.remove_pkt(sn)
 
         # and here, we restore the base64 encoded salt into bytes
-        data_b64 = shm_value.get('data')
-        data = base64.b64decode(data_b64)
+        data = shm_value.get('data')
+        data = base64.b64decode(data) if data is not None else data
 
         fields = shm_value.get('fields')
-        salt_b64 = fields.get('salt')
-        salt = base64.b64decode(salt_b64)
+
+        salt = fields.get('salt')
+        salt = base64.b64decode(salt) if salt is not None else salt
         fields.update(salt=salt)
+
+        mac = fields.get('mac')
+        mac = base64.b64decode(mac) if mac is not None else mac
+        fields.update(mac=mac)
 
         return UDPPacket(
             data=data,
