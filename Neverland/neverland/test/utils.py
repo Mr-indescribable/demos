@@ -66,11 +66,9 @@ def shm_wrapper(func, shm_config, *args, **kwargs):
     time.sleep(2)
 
     try:
-        res = func(shm_mgr, *args, **kwargs)
+        return func(shm_mgr, *args, **kwargs)
     finally:
         # without any mercy :)
         os.kill(pid, signal.SIGKILL)
         os.remove(shm_mgr_sock)
         os.removedirs(shm_sock_dir)
-
-    return res
