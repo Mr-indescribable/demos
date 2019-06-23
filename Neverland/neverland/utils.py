@@ -48,6 +48,10 @@ class ObjectifiedDict():
     def __setattr__(self, name, value):
         self.__update__(**{name: value})
 
+    def __contains(self, key):
+        container = object.__getattribute__(self, '__container__')
+        return key in container
+
     def __convert__(self, item):
         if isinstance(item, dict):
             return ObjectifiedDict(**item)
@@ -94,7 +98,7 @@ class ObjectifiedDict():
             return item.__to_dict__(keep_bytes)
         elif item.__class__ in (list, tuple, set):
             return [ObjectifiedDict.__to_dumpable__(unit) for unit in item]
-        elif item.__class__ in (bool, None):
+        elif item.__class__ is bool or item is None:
             return item
         elif item.__class__ not in (int, float, str):
             return str(item)

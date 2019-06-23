@@ -43,6 +43,7 @@ def with_shm_mgr(func):
 @pytest.fixture
 def pkt_2_test():
     pkt_fields = {
+        'sn': 1,
         'type': PktTypes.CTRL,
         'dest': ('127.0.0.1', 40000),
         'subject': 0x01,
@@ -50,13 +51,36 @@ def pkt_2_test():
     }
     pkt = UDPPacket()
     pkt.fields = ObjectifiedDict(**pkt_fields)
+    pkt.type = pkt.fields.type
     return pkt
 
 
 @with_shm_mgr
-def test_shm(shm_mgr, pkt_2_test):
+def test_store_n_get(shm_mgr, pkt_2_test):
     pkt_mgr = SpecialPacketManager(shm_config)
     pkt_mgr.init_shm()
 
+    try:
+        pkt_mgr.store_pkt(pkt_2_test)
+        pkt = pkt_mgr.get_pkt(pkt_2_test.fields.sn)
 
-    pkt_mgr.close_shm()
+        assert pkt.__to_dict__() == pkt_2_test.__to_dict__()
+    finally:
+        pkt_mgr.close_shm()
+
+
+@with_shm_mgr
+def test_pop(shm_mgr, pkt_2_test):
+    pkt_mgr = SpecialPacketManager(shm_config)
+    pkt_mgr.init_shm()
+
+    try:
+        pkt_mgr.store_pkt(pkt_2_test)
+        pkt = pkt_mgr.get_pkt(pkt_2_test.fields.sn, pop=True)
+        assert pkt.__to_dict__() == pkt_2_test.__to_dict__()
+
+        pkt = pkt_mgr.get_pkt(pkt_2_test.fields.sn)
+        print(pkt)
+        assert pkt is None
+    finally:
+        pkt_mgr.close_shm()

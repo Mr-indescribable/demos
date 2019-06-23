@@ -959,6 +959,8 @@ class SharedMemoryManager():
         if data.action == Actions.DISCONNECT:
             return self.handle_disconnect(data)
 
+        raise DropPacket
+
     def handle_backlogged_request(self, bl_sn, data):
         ''' handle the backlogged request
 

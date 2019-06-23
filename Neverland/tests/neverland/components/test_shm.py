@@ -389,3 +389,84 @@ def test_fifo_rw():
 
         # First In First Out
         assert resp.data.value == value
+
+
+def _test_rm_value(type_, key, init_value, value_2_rm, value_remaining):
+    global conn_id
+
+    KEY_PREFIX = 'rm-'
+    key = KEY_PREFIX + key
+
+    data = {
+        'conn_id': conn_id,
+        'action': Actions.CREATE,
+        'key': key,
+        'type': type_,
+        'value': init_value,
+    }
+    resp = _handle_request('handle_create', data)
+    print(resp)
+    assert resp.data.succeeded is True
+
+    # multi-value containers
+    if SHMContainerTypes.SET <= type_ <= SHMContainerTypes.DICT:
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.REMOVE,
+            'key': key,
+            'value': value_2_rm,
+        }
+        resp = _handle_request('handle_remove', data)
+        assert resp.data.succeeded is True
+
+        data = {
+            'conn_id': conn_id,
+            'action': Actions.READ,
+            'key': key,
+        }
+        resp = _handle_request('handle_read', data)
+        assert resp.data.succeeded is True
+
+        resp_value = resp.data.value
+
+        if type_ == SHMContainerTypes.SET:
+            value_remaining = list(value_remaining)
+        elif type_ == SHMContainerTypes.DICT:
+            resp_value = resp_value.__to_dict__()
+
+        assert resp_value == value_remaining
+    else:
+        raise Exception('Unexpected container type')
+
+
+@auto_connect
+def test_rm_dict_value():
+    _test_rm_value(
+        type_           = SHMContainerTypes.DICT,
+        key             = 'test-dict',
+        init_value      = {'a': 1, 'b': 2, 'c': 3},
+        value_2_rm      = ['a', 'b'],
+        value_remaining = {'c': 3},
+    )
+
+
+@auto_connect
+def test_rm_set_value():
+    _test_rm_value(
+        type_           = SHMContainerTypes.SET,
+        key             = 'test-set',
+        init_value      = {'a', 'b', 1, 2},
+        value_2_rm      = {'a', 1},
+        value_remaining = {'b', 2},
+    )
+
+
+@auto_connect
+def test_rm_list_value():
+    _test_rm_value(
+        type_           = SHMContainerTypes.LIST,
+        key             = 'test-list',
+        init_value      = ['a', 'b', 1, 2],
+        value_2_rm      = ['a', 1],
+        value_remaining = ['b', 2],
+    )

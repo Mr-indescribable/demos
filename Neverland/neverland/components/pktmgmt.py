@@ -134,20 +134,19 @@ class SpecialPacketManager():
         # Though this fields is useless, but as a low-level module, the
         # SpecialPacketManager should not change the content of packets
         fields = pkt.fields.__to_dict__()
-        salt = fields.get('salt')
-        if salt is not None:
-            salt_b64 = base64.b64encode(salt).decode()
-            fields.update(salt=salt_b64)
+
+        if 'salt' in fields:
+            salt = fields.get('salt')
+            if salt is not None:
+                salt_b64 = base64.b64encode(salt).decode()
+                fields.update(salt=salt_b64)
 
         # As well as the mac and the data
-        mac = fields.get('mac')
-        if mac is not None:
-            mac_b64 = base64.b64encode(mac).decode()
-            fields.update(mac=mac_b64)
-
-        data = pkt.data
-        if data is not None:
-            data = base64.b64encode(data).decode()
+        if 'mac' in fields:
+            mac = fields.get('mac')
+            if mac is not None:
+                mac_b64 = base64.b64encode(mac).decode()
+                fields.update(mac=mac_b64)
 
         previous_hop = list(pkt.previous_hop)
         next_hop = list(pkt.next_hop)
@@ -157,17 +156,22 @@ class SpecialPacketManager():
                 'Packets to be stored must contain a serial number'
             )
 
-        value = {
-            sn: {
-                'type': type_,
-                'fields': fields,
-                'previous_hop': previous_hop,
-                'next_hop': next_hop,
-                'data': data,
-            }
+        pkt_data = {
+            'type': type_,
+            'fields': fields,
+            'previous_hop': previous_hop,
+            'next_hop': next_hop,
         }
 
-        self.shm_mgr.add_value(self.shm_key_pkts, value)
+        if 'data' in pkt:
+            data = pkt.data
+            if data is not None:
+                data = base64.b64encode(data).decode()
+
+            pkt_data.update(data=data)
+
+        shm_value = {sn: pkt_data}
+        self.shm_mgr.add_value(self.shm_key_pkts, shm_value)
 
         if need_repeat:
             self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [sn])
@@ -196,27 +200,31 @@ class SpecialPacketManager():
         if pop:
             self.remove_pkt(sn)
 
-        # and here, we restore the base64 encoded salt into bytes
-        data = shm_value.get('data')
-        data = base64.b64decode(data) if data is not None else data
-
         fields = shm_value.get('fields')
 
-        salt = fields.get('salt')
-        salt = base64.b64decode(salt) if salt is not None else salt
-        fields.update(salt=salt)
+        if 'salt' in fields:
+            salt = fields.get('salt')
+            salt = base64.b64decode(salt) if salt is not None else salt
+            fields.update(salt=salt)
 
-        mac = fields.get('mac')
-        mac = base64.b64decode(mac) if mac is not None else mac
-        fields.update(mac=mac)
+        if 'mac' in fields:
+            mac = fields.get('mac')
+            mac = base64.b64decode(mac) if mac is not None else mac
+            fields.update(mac=mac)
 
-        return UDPPacket(
-            data=data,
+        pkt = UDPPacket(
             fields=fields,
             type=shm_value.get('type'),
             previous_hop=shm_value.get('previous_hop'),
             next_hop=shm_value.get('next_hop'),
         )
+
+        if 'data' in shm_value:
+            data = shm_value.get('data')
+            data = base64.b64decode(data) if data is not None else data
+            pkt.__update__(data=data)
+
+        return pkt
 
     def pop_pkt(self, sn):
         return self.get_pkt(sn, pop=True)

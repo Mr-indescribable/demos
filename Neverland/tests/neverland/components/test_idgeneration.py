@@ -10,7 +10,7 @@ def test_id_gen():
     generator = IDGenerator(0x01, 0x01)
 
     # 10M times, this will eat up about 600MB memory.
-    for _ in range(10000000):
+    for _ in range(1000):
         id_ = generator.gen()
         assert id_ not in id_pool
 
