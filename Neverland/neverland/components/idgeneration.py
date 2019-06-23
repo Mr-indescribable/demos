@@ -56,17 +56,17 @@ class IDGenerator():
         self.__sequence = 0
 
     def _get_current_ts(self):
-        ''' get current timestamp
-
-        :return: returns a millisecond timestamp in int format
-        '''
-
         ts = time.time()
         return int(ts * 1000)
 
     def _sleep_to_next_millisecond(self):
-        target = self.__last_ts + 1 / 1000
-        t2s = target - time.time()
+        current_ts = time.time() * 1000
+        t2s = (self.__last_ts + 1 - current_ts) / 1000
+
+        # in this case, we have already at the "next millisecond"
+        if t2s <= 0:
+            return
+
         time.sleep(t2s)
 
     def _next_sequence_and_ts(self):
