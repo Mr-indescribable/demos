@@ -405,7 +405,6 @@ def _test_rm_value(type_, key, init_value, value_2_rm, value_remaining):
         'value': init_value,
     }
     resp = _handle_request('handle_create', data)
-    print(resp)
     assert resp.data.succeeded is True
 
     # multi-value containers
@@ -430,11 +429,12 @@ def _test_rm_value(type_, key, init_value, value_2_rm, value_remaining):
         resp_value = resp.data.value
 
         if type_ == SHMContainerTypes.SET:
-            value_remaining = list(value_remaining)
-        elif type_ == SHMContainerTypes.DICT:
-            resp_value = resp_value.__to_dict__()
+            assert len(set(resp_value) - set(value_remaining)) == 0
+        else:
+            if type_ == SHMContainerTypes.DICT:
+                resp_value = resp_value.__to_dict__()
 
-        assert resp_value == value_remaining
+            assert resp_value == value_remaining
     else:
         raise Exception('Unexpected container type')
 
@@ -455,7 +455,7 @@ def test_rm_set_value():
     _test_rm_value(
         type_           = SHMContainerTypes.SET,
         key             = 'test-set',
-        init_value      = {'a', 'b', 1, 2},
+        init_value      = ['a', 'b', 1, 2],
         value_2_rm      = {'a', 1},
         value_remaining = {'b', 2},
     )

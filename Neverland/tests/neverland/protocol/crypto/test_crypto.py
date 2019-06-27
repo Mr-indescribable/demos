@@ -45,6 +45,7 @@ def test_kc_gcm():
 def _test_cipher(config):
     cryptor = Cryptor(config)
 
+    # for _ in range(3000):
     for _ in range(300):
         src_data = os.urandom(65536)
         encrypted_data = cryptor.encrypt(src_data)
