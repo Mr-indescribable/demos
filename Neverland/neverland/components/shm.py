@@ -309,6 +309,9 @@ class ReturnCodes(metaclass=MetaEnum):
     # or value type is not supported.
     TYPE_ERROR = 0x12
 
+    # caused by the ValueError exception
+    VALUE_ERROR = 0x13
+
     FIFO_ERROR = 0x21
 
     # The container which client side is accessing has been locked
@@ -712,7 +715,11 @@ class SharedMemoryManager():
                 rcode=ReturnCodes.TYPE_ERROR,
             )
         except ValueError:
-            return self._gen_response_json(conn_id=conn_id, succeeded=False)
+            return self._gen_response_json(
+                conn_id=conn_id,
+                succeeded=False,
+                rcode=ReturnCodes.VALUE_ERROR,
+            )
 
     def handle_dict_get(self, data):
         key = data.key

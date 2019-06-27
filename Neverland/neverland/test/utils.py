@@ -12,6 +12,9 @@ from neverland.components.shm import SharedMemoryManager
 '''
 
 
+SOCK_NAME = 'shm-wrapper.socket'
+
+
 def shm_wrapper(func, shm_config, *args, **kwargs):
     ''' A wrapper for test functions that need to use the SHM worker
 
@@ -66,8 +69,11 @@ def shm_wrapper(func, shm_config, *args, **kwargs):
     time.sleep(2)
 
     try:
+        shm_mgr.connect(SOCK_NAME)
         return func(shm_mgr, *args, **kwargs)
     finally:
+        shm_mgr.disconnect()
+
         # without any mercy :)
         os.kill(pid, signal.SIGKILL)
         os.remove(shm_mgr_sock)

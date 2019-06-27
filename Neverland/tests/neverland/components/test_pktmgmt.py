@@ -80,7 +80,6 @@ def test_pop(shm_mgr, pkt_2_test):
         assert pkt.__to_dict__() == pkt_2_test.__to_dict__()
 
         pkt = pkt_mgr.get_pkt(pkt_2_test.fields.sn)
-        print(pkt)
         assert pkt is None
     finally:
         pkt_mgr.close_shm()

@@ -125,7 +125,12 @@ class SpecialPacketManager():
         self.shm_mgr.disconnect()
 
     def store_pkt(self, pkt, need_repeat=False, max_rpt_times=5):
-        sn = pkt.fields.sn
+        if pkt.fields.sn is None:
+            raise InvalidPkt(
+                'Packets to be stored must contain a serial number'
+            )
+
+        sn_key = str(pkt.fields.sn)
         type_ = pkt.fields.type
 
         # The salt field is bytes, so we cannot serialize it in a JSON.
@@ -151,11 +156,6 @@ class SpecialPacketManager():
         previous_hop = list(pkt.previous_hop)
         next_hop = list(pkt.next_hop)
 
-        if sn is None:
-            raise InvalidPkt(
-                'Packets to be stored must contain a serial number'
-            )
-
         pkt_data = {
             'type': type_,
             'fields': fields,
@@ -170,18 +170,18 @@ class SpecialPacketManager():
 
             pkt_data.update(data=data)
 
-        shm_value = {sn: pkt_data}
+        shm_value = {sn_key: pkt_data}
         self.shm_mgr.add_value(self.shm_key_pkts, shm_value)
 
         if need_repeat:
-            self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [sn])
-            self.set_pkt_max_repeat_times(sn, max_rpt_times)
-            self.set_pkt_repeated_times(sn, 0)
+            self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [sn_key])
+            self.set_pkt_max_repeat_times(sn_key, max_rpt_times)
+            self.set_pkt_repeated_times(sn_key, 0)
 
         hex_type = Converter.int_2_hex(type_)
         logger.debug(
             f'Stored a special packet, need_repeat: {need_repeat}, '
-            f'sn: {sn}, type: {hex_type}, dest: {pkt.fields.dest}'
+            f'sn: {sn_key}, type: {hex_type}, dest: {pkt.fields.dest}'
         )
 
     def get_pkt(self, sn, pop=False):
@@ -191,14 +191,16 @@ class SpecialPacketManager():
                     the storage after the get_pkt invocation.
         '''
 
-        shm_data = self.shm_mgr.get_dict_value(self.shm_key_pkts, sn)
+        sn_key = str(sn)
+
+        shm_data = self.shm_mgr.get_dict_value(self.shm_key_pkts, sn_key)
         shm_value = shm_data.get('value')
 
         if shm_value is None:
             return None
 
         if pop:
-            self.remove_pkt(sn)
+            self.remove_pkt(sn_key)
 
         fields = shm_value.get('fields')
 
@@ -230,21 +232,25 @@ class SpecialPacketManager():
         return self.get_pkt(sn, pop=True)
 
     def remove_pkt(self, sn):
-        self.cancel_repeat(sn)
-        self.shm_mgr.remove_value(self.shm_key_pkts, sn)
+        sn_key = str(sn)
+
+        self.cancel_repeat(sn_key)
+        self.shm_mgr.remove_value(self.shm_key_pkts, sn_key)
 
         logger.debug(
-            f'Removed a special packet, sn: {sn}'
+            f'Removed a special packet, sn: {sn_key}'
         )
 
     def cancel_repeat(self, sn):
-        self.shm_mgr.remove_value(self.shm_key_pkts_to_repeat, sn)
-        self.shm_mgr.remove_value(self.shm_key_last_repeat_time, sn)
-        self.shm_mgr.remove_value(self.shm_key_next_repeat_time, sn)
-        self.shm_mgr.remove_value(self.shm_key_max_repeat_times, sn)
-        self.shm_mgr.remove_value(self.shm_key_repeated_times, sn)
+        sn_key = str(sn)
+
+        self.shm_mgr.remove_value(self.shm_key_pkts_to_repeat, sn_key)
+        self.shm_mgr.remove_value(self.shm_key_last_repeat_time, sn_key)
+        self.shm_mgr.remove_value(self.shm_key_next_repeat_time, sn_key)
+        self.shm_mgr.remove_value(self.shm_key_max_repeat_times, sn_key)
+        self.shm_mgr.remove_value(self.shm_key_repeated_times, sn_key)
         logger.debug(
-            f'Cancelled repeat for a packet, sn: {sn}'
+            f'Cancelled repeat for a packet, sn: {sn_key}'
         )
 
     def repeat_pkt(self, pkt, max_rpt_times=5):
@@ -255,38 +261,47 @@ class SpecialPacketManager():
         return shm_data.get('value')
 
     def set_pkt_last_repeat_time(self, sn, timestamp):
+        sn = str(sn)
         self.shm_mgr.add_value(self.shm_key_last_repeat_time, {sn: timestamp})
         logger.debug(f'set_pkt_last_repeat_time, sn: {sn}, ts: {timestamp}')
 
     def get_pkt_last_repeat_time(self, sn):
+        sn = str(sn)
         shm_data = self.shm_mgr.get_dict_value(self.shm_key_last_repeat_time, sn)
         return shm_data.get('value')
 
     def set_pkt_next_repeat_time(self, sn, timestamp):
+        sn = str(sn)
         self.shm_mgr.add_value(self.shm_key_next_repeat_time, {sn: timestamp})
         logger.debug(f'set_pkt_next_repeat_time, sn: {sn}, ts: {timestamp}')
 
     def get_pkt_next_repeat_time(self, sn):
+        sn = str(sn)
         shm_data = self.shm_mgr.get_dict_value(self.shm_key_next_repeat_time, sn)
         return shm_data.get('value')
 
     def set_pkt_max_repeat_times(self, sn, times):
+        sn = str(sn)
         self.shm_mgr.add_value(self.shm_key_max_repeat_times, {sn: times})
         logger.debug(f'set_pkt_max_repeat_times, sn: {sn}, times: {times}')
 
     def get_pkt_max_repeat_times(self, sn):
+        sn = str(sn)
         shm_data = self.shm_mgr.get_dict_value(self.shm_key_max_repeat_times, sn)
         return shm_data.get('value')
 
     def set_pkt_repeated_times(self, sn, times):
+        sn = str(sn)
         self.shm_mgr.add_value(self.shm_key_repeated_times, {sn: times})
         logger.debug(f'set_pkt_repeated_times, sn: {sn}, times: {times}')
 
     def get_pkt_repeated_times(self, sn):
+        sn = str(sn)
         shm_data = self.shm_mgr.get_dict_value(self.shm_key_repeated_times, sn)
         return shm_data.get('value')
 
     def increase_pkt_repeated_times(self, sn):
+        sn = str(sn)
         repeated_times = self.get_pkt_repeated_times(sn)
 
         if repeated_times is None:
