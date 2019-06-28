@@ -78,3 +78,36 @@ def shm_wrapper(func, shm_config, *args, **kwargs):
         os.kill(pid, signal.SIGKILL)
         os.remove(shm_mgr_sock)
         os.removedirs(shm_sock_dir)
+
+
+class FakeUDPTransmitter:
+
+    ''' A fake efferent class for testing SpecialPacketRepeater
+
+    In these unittests we cannot let the Repeater send out those packets.
+    Instead, we tamper the efferent and intercept all packet with it.
+    And then we can do some assert in the transmit method.
+    '''
+
+    def __init__(self, config, shared_socket=None, expected_pkts=None):
+        ''' COnstructor
+
+        :param expected_pkts: UDPPacket instances that will be passed into the
+                              transmit method. If a packet not included in it
+                              has been passed into the transmit method, then
+                              an AssertionError will be raised.
+        '''
+
+        self.config = config
+        self.expected_pkts_raw = expected_pkts
+
+        self.expected_pkts = [pkt.__to_dict__() for pkt in expected_pkts]
+
+    def create_socket(self, bind_port=None):
+        return None
+
+    def setsockopt(self, sock):
+        pass
+
+    def transmit(self, pkt):
+        assert pkt.__to_dict__() in sefl.expected_pkts

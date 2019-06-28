@@ -174,7 +174,9 @@ class SpecialPacketManager():
         self.shm_mgr.add_value(self.shm_key_pkts, shm_value)
 
         if need_repeat:
-            self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [sn_key])
+            # This one is stored in integer because it's a list
+            self.shm_mgr.add_value(self.shm_key_pkts_to_repeat, [pkt.fields.sn])
+
             self.set_pkt_max_repeat_times(sn_key, max_rpt_times)
             self.set_pkt_repeated_times(sn_key, 0)
 
@@ -244,7 +246,9 @@ class SpecialPacketManager():
     def cancel_repeat(self, sn):
         sn_key = str(sn)
 
-        self.shm_mgr.remove_value(self.shm_key_pkts_to_repeat, sn_key)
+        # This one is stored in integer because it's a list.
+        self.shm_mgr.remove_value(self.shm_key_pkts_to_repeat, sn)
+
         self.shm_mgr.remove_value(self.shm_key_last_repeat_time, sn_key)
         self.shm_mgr.remove_value(self.shm_key_next_repeat_time, sn_key)
         self.shm_mgr.remove_value(self.shm_key_max_repeat_times, sn_key)
