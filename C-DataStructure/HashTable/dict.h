@@ -32,14 +32,21 @@ typedef struct dict dict_t;
 
 
 dict_t *dict_new();
+
+dict_t *dict_new_default();
+
 void dict_free(dict_t *dict);
+
 void dict_update(
 	dict_t *dict,
 	char *key,
 	void *data,
 	unsigned int data_size
 );
+
 void *dict_get(dict_t *dict, char *key);
+
 int dict_remove(dict_t *dict, char *key);
+
 
 #endif
