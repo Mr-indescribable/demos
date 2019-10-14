@@ -33,6 +33,8 @@ static void _dict_free_bkt_chain(struct _dict_bkt *bkt)
 
 			free(cu->data);
 			free(cu);
+
+			cu = prev_cu;
 		}
 		while (prev_cu != NULL);
 	}
