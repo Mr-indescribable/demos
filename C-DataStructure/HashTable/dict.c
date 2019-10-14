@@ -239,6 +239,13 @@ int dict_remove(dict_t *dict, char *key)
 				cu->prev->next = cu->next;
 				cu->next->prev = cu->prev;
 			}
+			else if (cu->prev == NULL && cu->next == NULL)
+			{
+				/* 当 bkt 的 chain 中只有一个 cu 时，其左右两侧 */
+				/* 都是 NULL，这时，我们需要将 bkt 的 chain 置空 */
+				bkt->chain = NULL;
+				bkt->chain_tail = NULL;
+			}
 			else if (cu->prev == NULL)
 			{
 				/* 当 cu 前面没有节点的时候，说明它是第一个节点 */
