@@ -6,7 +6,7 @@ from Cython.Build import cythonize
 
 
 extensions = [
-    Extension('neverland/**', ['neverland/**/*.pyx']),
+    Extension('nvld/**', ['nvld/**/*.pyx']),
 ]
 
 

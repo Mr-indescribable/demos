@@ -1,7 +1,7 @@
 #!/usr/bin/python3.6
 #coding: utf-8
 
-from neverland.utils.od import ODict
+from nvld.utils.od import ODict
 
 
 def test_convert():
