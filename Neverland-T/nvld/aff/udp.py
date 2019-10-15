@@ -1,6 +1,3 @@
-#!/usr/bin/python3.6
-#coding: utf-8
-
 import socket
 import struct
 import logging
@@ -14,7 +11,7 @@ logger = logging.getLogger('Main')
 UDP_BUFFER_SIZE = 65507
 
 
-class UDPReceiver():
+class UDPAff():
 
     ''' A normal implementation of the afferents
     '''
@@ -67,7 +64,7 @@ class UDPReceiver():
         return self._fd
 
 
-class ClientUDPReceiver(UDPReceiver):
+class ClientUDPAff(UDPAff):
 
     def setsockopt(self, sock):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

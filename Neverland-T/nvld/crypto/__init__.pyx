@@ -1,6 +1,3 @@
-#!/usr/bin/python3.6
-# coding: utf-8
-
 import logging
 
 from ..exceptions import ArgumentError

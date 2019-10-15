@@ -1,6 +1,3 @@
-#!/usr/bin/python3.6
-#coding: utf-8
-
 import socket
 import logging
 
@@ -8,7 +5,7 @@ import logging
 logger = logging.getLogger('Main')
 
 
-class UDPTransmitter():
+class UDPEff():
 
     def __init__(self, config, shared_socket=None):
         ''' Constructor

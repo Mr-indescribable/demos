@@ -1,6 +1,3 @@
-#!/usr/bin/python3.6
-#coding: utf-8
-
 import json
 
 from .utils.od import ODict
