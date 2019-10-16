@@ -6,10 +6,17 @@ from Cython.Build import cythonize
 
 
 extensions = [
-    Extension('nvld/**', ['nvld/**/*.pyx']),
+    Extension(
+        'nvld/**',
+        ['nvld/**/*.pyx'],
+        libraries=["crypto"],
+    ),
 ]
 
 
 setup(
-    ext_modules = cythonize(extensions)
+    ext_modules=cythonize(
+        extensions,
+        compiler_directives={'language_level': 3},
+    )
 )

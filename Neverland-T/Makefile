@@ -9,10 +9,10 @@ test:
 	./run-test.py;
 
 clean:
-	./setup.py clean;
 	find nvld -name "*.c" -delete;
-
-clean-all:
-	make clean;
 	rm build -rf;
 	rm atf -rf;
+
+clean-tmpf:
+	./setup.py clean;
+	find nvld -name "*.c" -delete;

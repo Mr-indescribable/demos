@@ -1,79 +1,26 @@
-import logging
-from ctypes import (
-    byref,
-    CDLL,
-    c_void_p,
-    c_int,
-    c_long,
-    c_char_p,
-    create_string_buffer,
+from libc.stdlib cimport malloc, free
+from cython.operator cimport dereference as deref
+from cython.operator cimport address     as byref
+
+from ._libcrypto cimport (
+    EVP_CIPHER_CTX,
+    EVP_CIPHER,
+    EVP_get_cipherbyname,
+    EVP_CIPHER_CTX_new,
+    EVP_CIPHER_CTX_reset,
+    EVP_CIPHER_CTX_free,
+    EVP_CipherInit_ex,
+    EVP_CipherUpdate,
 )
 
-from ..exceptions import ArgumentError
-from ..utils.hash import HashTools
-from .mode import Modes
 
+cdef class OpenSSLCryptor:
 
-''' The OpenSSL crypto module
-
-libcrypto.so.1.1 is required
-
-Currently, it's not used.
-'''
-
-
-logger = logging.getLogger('Crypto')
-
-
-EVP_MAX_KEY_LENGTH = 64
-EVP_MAX_IV_LENGTH = 16
-
-
-libcrypto = None
-lib_loaded = False
-
-
-def load_libcrypto(libpath='libcrypto.so.1.1'):
-    global lib_loaded, libcrypto
-    if not lib_loaded:
-        libcrypto = CDLL(libpath)
-
-        libcrypto.EVP_get_cipherbyname.restype = c_void_p
-        libcrypto.EVP_CIPHER_CTX_new.restype = c_void_p
-        libcrypto.EVP_CIPHER_CTX_free.argtypes = [c_void_p]
-        libcrypto.EVP_CIPHER_CTX_reset.argtypes = [c_void_p]
-        libcrypto.EVP_CipherInit_ex.argtypes = [
-            c_void_p, c_void_p, c_char_p, c_char_p, c_char_p, c_int
-        ]
-        libcrypto.EVP_CipherUpdate.argtypes = [
-            c_void_p, c_void_p, c_void_p, c_char_p, c_int
-        ]
-
-        lib_loaded = True
-        logger.info(f'Successfully loaded crypto library from {libpath}')
-
-
-def new_cipher_ctx(cipher_name, key, iv, mod):
-    ''' create a new EVP cipher context
+    ''' The libcrypto wrapper class
     '''
 
-    if libcrypto is None:
-        raise Exception('libcrypto is not loaded, cannot init cipher')
+    _CINIT = True
 
-    cipher_ctx = libcrypto.EVP_CIPHER_CTX_new()
-    cipher = libcrypto.EVP_get_cipherbyname(cipher_name)
-    res = libcrypto.EVP_CipherInit_ex(
-             cipher_ctx, cipher, None, key, iv, c_int(mod)
-          )
-
-    if bool(res) is False:
-        raise Exception('cipher init failed')
-    return cipher_ctx, cipher
-
-
-class OpenSSLCryptor(object):
-
-    buf_size = 2048
     supported_ciphers = [
         'aes-128-cfb',
         'aes-192-cfb',
@@ -87,7 +34,8 @@ class OpenSSLCryptor(object):
         'chacha20',
         'chacha20-poly1305',
     ]
-    key_len_mapping = {
+
+    key_len_map = {
         'aes-128-cfb': 16,
         'aes-192-cfb': 24,
         'aes-256-cfb': 32,
@@ -101,87 +49,88 @@ class OpenSSLCryptor(object):
         'chacha20-poly1305': 32,
     }
 
-    def __init__(self, config, mode, key=None, iv=None):
-        ''' Constructor
+    # libcrypto will automatically trim the iv,
+    # So, we can simply leave the work to libcrypto
+    iv_len_map = {
+        'aes-128-cfb': 32,
+        'aes-192-cfb': 32,
+        'aes-256-cfb': 32,
+        'aes-128-ofb': 32,
+        'aes-192-ofb': 32,
+        'aes-256-ofb': 32,
+        'aes-128-gcm': 32,
+        'aes-192-gcm': 32,
+        'aes-256-gcm': 32,
+        'chacha20': 32,
+        'chacha20-poly1305': 32,
+    }
 
-        :param config: the config
-        :param mode: mod argument for EVP_CipherInit_ex. 0 or 1,
-                     0 means decrypting and 1 means encrypting,
-        :param key: the crypto key which will be used in encryption and
-                    decryption, if it's not provided, then the default key
-                    derived from the password will be used
-        :param iv: the IV used in encryption and decryption, if it's not
-                   provided, then the default iv derived from the
-                   identification string will be used
-        '''
+    cdef char *_cipher_name
+    cdef unsigned char *_key
+    cdef unsigned char *_iv
+    cdef int _mod
 
-        self.config = config
-        self.cipher_name = self.config.net.crypto.cipher
-        self.libpath = self.config.net.crypto.lib_path or 'libcrypto.so.1.1'
+    # output buffer for update()
+    cdef void *_o_buf
+    cdef int   _o_len
 
+    cdef EVP_CIPHER_CTX *_ctx
+    cdef EVP_CIPHER     *_cph
+
+    def __cinit__(self,
+        char *cipher_name,
+        int mode,
+        unsigned char *key,
+        unsigned char *iv,
+    ):
+        self._o_buf = NULL
+
+        self._key = key
+        self._iv = iv
         self._mod = mode
-        if self._mod not in Modes:
-            raise ArgumentError(f'Invalid mode: {mode}')
+        self._cipher_name = cipher_name
+        self._cph = EVP_get_cipherbyname(self._cipher_name)
+        self._ctx = EVP_CIPHER_CTX_new()
 
-        self.__identification = self.config.net.identification
-        self.__passwd = self.config.net.crypto.password
-        self._iv_len = self.config.net.crypto.iv_len
-        self._key_len = self.key_len_mapping.get(self.cipher_name)
+        EVP_CipherInit_ex(
+            self._ctx, self._cph, NULL, self._key, self._iv, self._mod
+        )
 
-        if self._iv_len > EVP_MAX_IV_LENGTH:
-            raise ArgumentError('IV length overflows')
+    def __dealloc__(self):
+        self.destroy()
 
-        self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
+    cdef void _reset_o_buf(self, int size):
+        # According to the doc of glibc, realloc could copy the data
+        # into a new place if it needs to be relocated.
+        #
+        # So, I'd rather free it and get a new block.
+        if self._o_buf is not NULL:
+            free(self._o_buf)
 
-        if self.cipher_name not in self.supported_ciphers:
-            raise ArgumentError(f'Unsupported cipher name: {self.cipher_name}')
+        self._o_buf = malloc(size)
 
-        if not lib_loaded:
-            load_libcrypto(self.libpath)
+    cdef int _update(self, void *data, int data_len):
+        self._reset_o_buf(data_len)
 
-        self._cph_ctx, self._cph = new_cipher_ctx(
-            self.cipher_name.encode(), self._key, self._iv, self._mod
+        return EVP_CipherUpdate(
+            self._ctx, self._o_buf, byref(self._o_len), data, data_len
         )
 
     def update(self, data):
-        ''' do encryption or decryption
-        '''
-
-        in_ = c_char_p(data)
-        inl = len(data)
-        buf_size = self.buf_size if self.buf_size >= inl else inl * 2
-        out = create_string_buffer(buf_size)
-        outl = c_long(0)
-
-        libcrypto.EVP_CipherUpdate(
-            self._cph_ctx,
-            byref(out),
-            byref(outl),
-            in_,
-            inl,
-        )
-        self.reset()
-        return out.raw[:outl.value]
-
-    def clean(self):
-        if hasattr(self, '_cph_ctx'):
-            libcrypto.EVP_CIPHER_CTX_reset(self._cph_ctx)
-            libcrypto.EVP_CIPHER_CTX_free(self._cph_ctx)
-            self._cipher_ctx = None
-        if hasattr(self, '_cph'):
-            self._cph = None
+        self._update(data, len(data))
+        return self._o_buf
 
     def reset(self):
-        libcrypto.EVP_CIPHER_CTX_reset(self._cph_ctx)
-        libcrypto.EVP_CipherInit_ex(
-            self._cph_ctx,
-            self._cph,
-            None,
-            self._key,
-            self._iv,
-            c_int(self._mod)
+        EVP_CIPHER_CTX_reset(self._ctx)
+        EVP_CipherInit_ex(
+            self._ctx, self._cph, NULL, self._key, self._iv, self._mod
         )
 
-    def __del__(self):
-        self.clean()
+    def destroy(self):
+        EVP_CIPHER_CTX_free(self._ctx)
+
+        if (self._o_buf is not NULL):
+            free(self._o_buf)
+
+        self._ctx = NULL
+        self._cph = NULL

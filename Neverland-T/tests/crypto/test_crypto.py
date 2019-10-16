@@ -51,6 +51,12 @@ def _test_cipher(config):
         encrypted_data = cryptor.encrypt(src_data)
         decrypted_data = cryptor.decrypt(encrypted_data)
 
+        print("=================================")
+        print(len(src_data))
+        print(len(encrypted_data))
+        print(len(decrypted_data))
+        print("=================================")
+
         assert src_data != encrypted_data
         assert src_data not in encrypted_data
         assert src_data == decrypted_data

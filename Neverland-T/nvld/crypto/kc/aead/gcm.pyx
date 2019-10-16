@@ -2,8 +2,7 @@ import os
 import socket
 import platform
 
-from ....exceptions import ArgumentError, DecryptionFailed
-from ....utils.hash import HashTools
+from ....exceptions import DecryptionFailed
 from ....utils.misc import errno_from_exception
 from ...mode import Modes
 from ..base import BaseKernelCryptor, KC_DECRYPTION_FAILED
@@ -33,20 +32,29 @@ ICV_LENGTH = 16
 
 class GCMKernelCryptor(BaseKernelCryptor):
 
+    ''' The GCM Kernel Cryptor
+    '''
+
     supported_ciphers = [
         'kc-aes-128-gcm',
         'kc-aes-192-gcm',
         'kc-aes-256-gcm',
     ]
 
-    key_length_mapping = {
+    key_len_map = {
         'kc-aes-128-gcm': 16,
         'kc-aes-192-gcm': 24,
         'kc-aes-256-gcm': 32,
     }
 
+    iv_len_map = {
+        'kc-aes-128-gcm': GCM_IV_LENGTH,
+        'kc-aes-192-gcm': GCM_IV_LENGTH,
+        'kc-aes-256-gcm': GCM_IV_LENGTH,
+    }
+
     def prepare(self):
-        self._key_len = self.key_length_mapping.get(self.cipher_name)
+        self._key_len = self.key_len_map.get(self._cipher_name)
         self._iv_len = GCM_IV_LENGTH
         self._kc_cipher_type = 'aead'
         self._kc_cipher_name = 'gcm(aes)'

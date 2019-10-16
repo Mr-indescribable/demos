@@ -3,7 +3,6 @@ import socket
 import platform
 
 from ...exceptions import ArgumentError
-from ...utils.hash import HashTools
 from ..mode import Modes
 
 
@@ -24,6 +23,8 @@ class BaseKernelCryptor():
 
     ''' The base class of kernel cryptors
     '''
+
+    _CINIT = False
 
     # The minimum of required version of the Linux kernel
     KERNEL_MOJOR_VERSION = 4
@@ -63,32 +64,14 @@ class BaseKernelCryptor():
             f'{cls.KERNEL_MOJOR_VERSION}.{cls.KERNEL_MINOR_VERSION} is required'
         )
 
-    def __init__(self, config, mode, key=None, iv=None):
-        ''' Constructor
-
-        :param config: the config
-        :param mode: the working mod of the cryptor,
-                    0 to decrypting and 1 to encrypting
-        :param key: the crypto key which will be used in encryption and
-                    decryption, if it's not provided, then the default key
-                    derived from the password will be used
-        :param iv: the IV used in encryption and decryption, if it's not
-                   provided, then the default iv derived from the
-                   identification string will be used
-        '''
-
-        self.config = config
+    def __init__(self, cipher_name, mode, key, iv):
+        self._cipher_name = cipher_name
         self._mode = mode
-
-        self.cipher_name = self.config.net.crypto.cipher
-        self.__identification = self.config.net.identification
-        self.__passwd = self.config.net.crypto.password
+        self._key = key
+        self._iv = iv
 
         self.prepare()
         self.checkup()
-
-        self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
 
         self.init_cryptor()
 
@@ -116,8 +99,8 @@ class BaseKernelCryptor():
             BaseKernelCryptor.check_kernel_version()
             _kernel_version_checked = True
 
-        if self.cipher_name not in self.supported_ciphers:
-            raise ArgumentError(f'Unsupported cipher name: {self.cipher_name}')
+        if self._cipher_name not in self.supported_ciphers:
+            raise ArgumentError(f'Unsupported cipher name: {self._cipher_name}')
 
         if self._mode not in Modes:
             raise ArgumentError(f'Invalid mod: {self._mode}')

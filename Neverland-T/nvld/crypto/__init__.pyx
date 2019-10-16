@@ -1,8 +1,9 @@
 import logging
 
 from ..exceptions import ArgumentError
+from ..utils.hash import HashTools
 from .mode import Modes
-from .openssl import OpenSSLCryptor, load_libcrypto
+from .openssl import OpenSSLCryptor
 from .kc.aead.gcm import GCMKernelCryptor
 
 
@@ -22,22 +23,7 @@ supported_ciphers.update(openssl_ciphers)
 supported_ciphers.update(kc_aead_ciphers)
 
 
-openssl_preload_func_map = {
-    cipher: load_libcrypto for cipher in OpenSSLCryptor.supported_ciphers
-}
-
-
-preload_funcs = {}
-preload_funcs.update(openssl_preload_func_map)
-
-
 ALL_CIPHERS = list(supported_ciphers.keys())
-
-
-def preload_crypto_lib(cipher_name, libpath=None):
-    preload_func = preload_funcs.get(cipher_name)
-    if preload_func is not None:
-        preload_func(libpath)
 
 
 class Cryptor():
@@ -46,7 +32,7 @@ class Cryptor():
     # type: str, format: "ip:port"
     attribution = None
 
-    def __init__(self, config, key=None, iv=None, attribution=None):
+    def __init__(self, config, key=None, iv=None, attribution=None, stream=False):
         ''' Constructor
 
         :param config: the config
@@ -56,13 +42,25 @@ class Cryptor():
                    IV derived by neverland.utils.HashTools.hdivdf will be used
         :param attribution: a tag about which remote node that this cryptor
                             belongs to.
+        :param stream: if is argument is False, then the Cryptor will
+                       not work in stream mode, it will reset the cipher after
+                       each time of encryption or decryption
         '''
 
         self.config = config
         self.attribution = attribution
 
+        self._stream = stream
+
+        self.__identification = self.config.net.identification
+        self.__passwd = self.config.net.crypto.password
         self._cipher_name = self.config.net.crypto.cipher
         self._cipher_cls = supported_ciphers.get(self._cipher_name)
+        self._key_len = self._cipher_cls.key_len_map[self._cipher_name]
+        self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]
+
+        self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
+        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
 
         if self._cipher_cls is None:
             raise Exception('unsupported cipher')
@@ -70,26 +68,51 @@ class Cryptor():
         if self._cipher_name.startswith('kc-'):
             self._cipher_cls.check_kernel_version()
 
-        self._init_ciphers(key, iv)
+        self._init_ciphers()
 
         logger.info(
             f'Loadded crypto implementation {self._cipher_cls.__name__} '
             f'with cipher {self._cipher_name}'
         )
 
-    def _init_ciphers(self, key, iv):
-        self._cipher = self._cipher_cls(self.config, Modes.ENCRYPTING, key, iv)
-        self._decipher = self._cipher_cls(self.config, Modes.DECRYPTING, key, iv)
+    def _init_ciphers(self):
+        if self._cipher_cls._CINIT:
+            cipher_name = self._cipher_name.encode()
+        else:
+            cipher_name = self._cipher_name
+
+        self._cipher = self._cipher_cls(
+            cipher_name,
+            Modes.ENCRYPTING,
+            self._key,
+            self._iv,
+        )
+        self._decipher = self._cipher_cls(
+            cipher_name,
+            Modes.DECRYPTING,
+            self._key,
+            self._iv,
+        )
 
     def reset(self):
         self._cipher.reset()
         self._decipher.reset()
 
     def encrypt(self, data):
-        return self._cipher.update(data)
+        data = self._cipher.update(data)
+
+        if not self._stream:
+            self._cipher.reset()
+
+        return data
 
     def decrypt(self, data):
-        return self._decipher.update(data)
+        data = self._decipher.update(data)
+
+        if not self._stream:
+            self._decipher.reset()
+
+        return data
 
     @property
     def iv(self):
