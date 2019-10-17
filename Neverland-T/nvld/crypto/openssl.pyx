@@ -16,7 +16,7 @@ from ._libcrypto cimport (
 
 cdef class OpenSSLCryptor:
 
-    ''' The libcrypto wrapper class
+    ''' The wrapper class for libcrypto.so.1.1
     '''
 
     _CINIT = True
@@ -71,8 +71,8 @@ cdef class OpenSSLCryptor:
     cdef int _mod
 
     # output buffer for update()
-    cdef void *_o_buf
-    cdef int   _o_len
+    cdef unsigned char *_o_buf
+    cdef int            _o_len
 
     cdef EVP_CIPHER_CTX *_ctx
     cdef EVP_CIPHER     *_cph
@@ -107,9 +107,9 @@ cdef class OpenSSLCryptor:
         if self._o_buf is not NULL:
             free(self._o_buf)
 
-        self._o_buf = malloc(size)
+        self._o_buf = <unsigned char *>malloc(size)
 
-    cdef int _update(self, void *data, int data_len):
+    cdef int _update(self, unsigned char *data, int data_len):
         self._reset_o_buf(data_len)
 
         return EVP_CipherUpdate(
@@ -118,7 +118,7 @@ cdef class OpenSSLCryptor:
 
     def update(self, data):
         self._update(data, len(data))
-        return self._o_buf
+        return self._o_buf[:self._o_len]
 
     def reset(self):
         EVP_CIPHER_CTX_reset(self._ctx)
