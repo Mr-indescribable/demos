@@ -4,6 +4,7 @@ import time
 from ..utils.hash import HashTools
 from ..glb import GLBComponent, GLBInfo, GLBPktFmt
 from .fmt import ComplexedFormat
+from ..pkt.general import PktTypes, PktProto
 
 
 ''' field calculators for PktFormat classes

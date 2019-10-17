@@ -55,6 +55,13 @@ class HeaderFormat(BasePktFormat):
                        calc_priority = 0xff,
                    ),
 
+            # Length of the packet
+            'len': FieldDefinition(
+                       length  = 2,
+                       type    = FieldTypes.STRUCT_U_SHORT,
+                       default = 0x00,
+                   ),
+
             # Each UDP packet shall have a serial number as its identifier.
             'sn': FieldDefinition(
                       length        = 8,
@@ -80,13 +87,6 @@ class HeaderFormat(BasePktFormat):
                         length = 1,
                         type   = FieldTypes.STRUCT_U_CHAR,
                     ),
-
-            # Length of the packet
-            'len': FieldDefinition(
-                       length  = 2,
-                       type    = FieldTypes.STRUCT_U_SHORT,
-                       default = 0x00,
-                   ),
 
             # The source of the packet
             # TODO ipv6 support

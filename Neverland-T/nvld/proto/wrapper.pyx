@@ -47,30 +47,13 @@ class PacketWrapper():
         return None
 
     def wrap(self, pkt):
-        ''' make a valid Neverland UDP packet
-
-        This method shall be implemented by subclasses.
-
-        :param pkt: neverland.pkt.UDPPacket object
-        :return: neverland.pkt.UDPPacket object
-        '''
-
         pkt_fmt = self._find_fmt(pkt.proto, pkt.fields.type)
 
         pkt.type = pkt.fields.type
-        pkt.data = self.make_pkt(pkt, pkt_fmt)
+        pkt.data = self._make_pkt(pkt, pkt_fmt)
         return pkt
 
-    def make_pkt(self, pkt, body_fmt):
-        ''' make a valid Neverland UDP packet
-
-        During the packing, this method will put each fields into pkt.byte_fields
-
-        :param pkt: neverland.pkt.UDPPacket object
-        :param body_fmt: the format definition class of the packet body
-        :return: udp_data
-        '''
-
+    def _make_pkt(self, pkt, body_fmt):
         udp_data = b''
         fmt = self.complexed_fmt_mapping.get(pkt.fields.type)
 
@@ -102,7 +85,7 @@ class PacketWrapper():
 
                 if value is None:
                     raise PktWrappingError(
-                        f'Field {field_name}: calculator {calculator} doesn\'t '
+                        f'Field {field_name}: calculator doesn\'t '
                         f'return a valid value'
                     )
 
@@ -123,23 +106,23 @@ class PacketWrapper():
         ''' pack a single field
 
         :param value: value of the field
-        :param field_type: type of the field, select from neverland.pkt.FieldTypes
+        :param field_type: type of the field, select from FieldTypes
         :return: bytes
         '''
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
-            return struct.pack('<B', value)
+            return pystruct.pack('<B', value)
         if field_type == FieldTypes.STRUCT_U_SHORT:
-            return struct.pack('<H', value)
+            return pystruct.pack('<H', value)
         if field_type == FieldTypes.STRUCT_U_INT:
-            return struct.pack('<I', value)
+            return pystruct.pack('<I', value)
         if field_type == FieldTypes.STRUCT_U_LONG_LONG:
-            return struct.pack('<Q', value)
+            return pystruct.pack('<Q', value)
         if field_type == FieldTypes.STRUCT_IPV4_SA:
             # ipv4 socket address should in the following format: (ip, port)
             ip, port = value[0], value[1]
             ip = [int(u) for u in ip.split('.')]
-            return struct.pack('!BBBBH', *ip, port)
+            return pystruct.pack('!BBBBH', *ip, port)
         if field_type == FieldTypes.STRUCT_IPV6_SA:
             # TODO ipv6 support
             raise NotImplemented
@@ -156,7 +139,7 @@ class PacketWrapper():
             if isinstance(value, dict):
                 data = json.dumps(value)
                 return data.encode()
-            elif isinstance(value, ObjectifiedDict):
+            elif isinstance(value, ODict):
                 data = json.dumps(value.__to_dict__())
                 return data.encode()
             else:
@@ -165,30 +148,16 @@ class PacketWrapper():
                 )
 
     def unwrap(self, pkt):
-        ''' unpack a raw UDP packet
-
-        This method shall be implemented by subclasses.
-
-        :param pkt: neverland.pkt.UDPPacket object
-        :return: neverland.pkt.UDPPacket object
-        '''
-
         raise NotImplemented
 
-    def parse_pkt(self, pkt):
-        ''' parse a raw UDP packet
-
-        :param value: value of the field
-        :return: (fields, byte_fields)
-        '''
-
+    def _parse_pkt(self, pkt):
         cur = 0   # cursor
-        fields = ObjectifiedDict()
-        byte_fields = ObjectifiedDict()
+        fields = ODict()
+        byte_fields = ODict()
 
         # parse the header first
         for field_name, definition in self.header_fmt.__fmt__.items():
-            # -1 means this field is the last fields of the packet
+            # -1 means this field is the last field of the packet
             # and it consumes all remaining space of the packet
             if definition.length == -1:
                 field_data = pkt.data[cur:]
@@ -201,7 +170,7 @@ class PacketWrapper():
 
             try:
                 value = self._unpack_field(field_data, definition.type)
-            except struct.error:
+            except pystruct.error:
                 raise InvalidPkt('unpack failed')
 
             fields.__update__(**{field_name: value})
@@ -228,7 +197,7 @@ class PacketWrapper():
 
             try:
                 value = self._unpack_field(field_data, definition.type)
-            except struct.error:
+            except pystruct.error:
                 raise InvalidPkt('unpack failed')
 
             fields.__update__(**{field_name: value})
@@ -241,20 +210,20 @@ class PacketWrapper():
         ''' unpack a single field
 
         :param data: bytes
-        :param field_type: type of the field, choosed from neverland.pkt.FieldTypes
+        :param field_type: type of the field, choosed from FieldTypes
         :return: the unpacked value
         '''
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
-            return struct.unpack('<B', data)[0]
+            return pystruct.unpack('<B', data)[0]
         if field_type == FieldTypes.STRUCT_U_SHORT:
-            return struct.unpack('<H', data)[0]
+            return pystruct.unpack('<H', data)[0]
         if field_type == FieldTypes.STRUCT_U_INT:
-            return struct.unpack('<I', data)[0]
+            return pystruct.unpack('<I', data)[0]
         if field_type == FieldTypes.STRUCT_U_LONG_LONG:
-            return struct.unpack('<Q', data)[0]
+            return pystruct.unpack('<Q', data)[0]
         if field_type == FieldTypes.STRUCT_IPV4_SA:
-            info = struct.unpack('!BBBBH', data)
+            info = pystruct.unpack('!BBBBH', data)
             ip = '.'.join(
                     [str(unit) for unit in info[0:4]]
                  )
