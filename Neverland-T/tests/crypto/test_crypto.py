@@ -27,7 +27,6 @@ crypto_config_dict = {
 
 def test_openssl():
     config = JsonConfig(**crypto_config_dict)
-    config.net.crypto.__update__(lib_path='libcrypto.so.1.1')
 
     for cipher_name in OpenSSLCryptor.supported_ciphers:
         config.net.crypto.__update__(cipher=cipher_name)
@@ -45,17 +44,10 @@ def test_kc_gcm():
 def _test_cipher(config):
     cryptor = Cryptor(config)
 
-    # for _ in range(3000):
-    for _ in range(300):
+    for _ in range(1024):
         src_data = os.urandom(65536)
         encrypted_data = cryptor.encrypt(src_data)
         decrypted_data = cryptor.decrypt(encrypted_data)
-
-        print("=================================")
-        print(len(src_data))
-        print(len(encrypted_data))
-        print(len(decrypted_data))
-        print("=================================")
 
         assert src_data != encrypted_data
         assert src_data not in encrypted_data

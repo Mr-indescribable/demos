@@ -77,7 +77,8 @@ cdef class OpenSSLCryptor:
     cdef EVP_CIPHER_CTX *_ctx
     cdef EVP_CIPHER     *_cph
 
-    def __cinit__(self,
+    def __cinit__(
+        self,
         char *cipher_name,
         int mode,
         unsigned char *key,
