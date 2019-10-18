@@ -1,4 +1,46 @@
+import json
+
 from nvld.components.nid import NIDMgr
+from nvld.glb import GLBInfo
+
+
+data_2_test = {
+    'group_0': {
+        'key_0': 'value_0',
+        'key_1': 'value_1',
+        'key_2': 'value_2',
+    },
+    'group_1': {
+        'key_0': 'value_3',
+        'key_1': 'value_4',
+        'key_2': 'value_5',
+    },
+    'group_2': {
+        'key_0': 'value_6',
+        'key_1': 'value_7',
+        'key_2': 'value_8',
+    },
+    'group_3': {
+        'key_0': 'value_9',
+        'key_1': 'value_10',
+        'key_2': 'value_11',
+    },
+    'group_4': {
+        'key_0': 'value_12',
+        'key_1': 'value_13',
+        'key_2': 'value_14',
+    },
+    'group_5': {
+        'key_0': 'value_15',
+        'key_1': 'value_16',
+        'key_2': 'value_17',
+    },
+    'group_6': {
+        'key_0': 'value_18',
+        'key_1': 'value_19',
+        'key_2': 'value_20',
+    },
+}
 
 
 def test_cross():
@@ -24,3 +66,15 @@ def test_uncross():
 
     assert o_b0 == byte0
     assert o_b1 == byte1
+
+
+def test_nid():
+    nid_mgr = NIDMgr()
+
+    conf_data = json.dumps(data_2_test).encode()
+    nid_data = nid_mgr.gen_nid_data(conf_data)
+
+    div_data, parsed_conf_data = nid_mgr.parse_nid_data(nid_data)
+
+    assert conf_data == parsed_conf_data
+    assert len(div_data) == len(conf_data)

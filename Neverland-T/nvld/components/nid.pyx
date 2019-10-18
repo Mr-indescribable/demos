@@ -187,23 +187,29 @@ cdef class NIDMgr():
 
         return self.__bu_buf[0:1], self.__bu_buf[1:2]
 
-    def gen(self, conf_file, nid_file):
+    def gen_nid_data(self, conf_data):
         data = b''
-        conf_len = 0  # quiets a warning form gcc (could be uninitialized)
-
-        with open(conf_file, 'rb') as cf:
-            conf_data = cf.read()
-            conf_len = len(conf_data)
+        conf_len = len(conf_data)
 
         iv_stream = self._div_mgr.gen(conf_len)
 
-        for b_iv, b_cf in zip(iv_stream, conf_data):
+        for i in range(0, conf_len):
+            b_cf = conf_data[i: i + 1]
+            b_iv = iv_stream[i: i + 1]
             data += self.bit_cross(b_iv, b_cf)
+
+        return data
+
+    def gen_nid_file(self, conf_file, nid_file):
+        with open(conf_file, 'rb') as cf:
+            conf_data = cf.read()
+
+        data = self.gen_nid_data(conf_data)
 
         with open(nid_file, 'wb') as nf:
             nf.write(data)
 
-    def _parse_nid_data(self, nid_data):
+    def parse_nid_data(self, nid_data):
         div_data = b''
         conf_data = b''
         nid_len = len(nid_data)
@@ -229,7 +235,7 @@ cdef class NIDMgr():
         with open(nid_file, 'rb') as nf:
             nid_data = nf.read()
 
-        div_data, conf_data = self._parse_nid_data(nid_data)
+        div_data, conf_data = self.parse_nid_data(nid_data)
 
         self._div_mgr.load(div_data)
         self._cfg_mgr.load(conf_data.decode())
