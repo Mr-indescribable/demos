@@ -66,8 +66,6 @@ class ConfigMgr():
             raise ConfigError('crypto.cipher must be a string')
         if not VerifiTools.type_matched(crypto.salt_len, int):
             raise ConfigError('crypto.salt_len must be an integer')
-        if not VerifiTools.type_matched(crypto.iv_len, int):
-            raise ConfigError('crypto.iv_len must be an integer')
         if not VerifiTools.type_matched(crypto.iv_duration_range, list):
             raise ConfigError('crypto.iv_duration_range must be an array')
 

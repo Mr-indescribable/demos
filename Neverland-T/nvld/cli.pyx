@@ -5,7 +5,9 @@ import argparse
 
 from .logging import init_all_loggers
 from .exceptions import ArgumentError, PidFileNotExists
-from .utils import Shell
+from .utils.misc import Shell
+
+from .components.nid import NIDMgr
 
 
 logger = logging.getLogger('Main')
@@ -19,13 +21,19 @@ def parse_cli_args():
     argp.add_argument(
         'action',
         metavar='<action>',
-        help='The operation you want to do. Options: start/stop/status/clean',
+        help='The operation you want to do. Options: start/stop/status/gennid',
     )
     argp.add_argument(
-        '-c',
+        '-n',
         metavar='<path>',
-        default='./nl.json',
-        help='Specify the config file. default: ./nl.json',
+        default='./nvld.nid',
+        help='Specify the NID file. default: ./nvld.nid',
+    )
+    argp.add_argument(
+        '-j',
+        metavar='<path>',
+        default='./nvld.json',
+        help='Specify the JSON file. default: ./nvld.json',
     )
     args = argp.parse_args()
     return args
@@ -55,30 +63,21 @@ def mkdirs(config):
             Shell.mkdir(d)
 
 
-def launch():
+def gen_nid(json_f, nid_f):
+    nid_mgr = NIDMgr()
+    nid_mgr.gen_nid_file(json_f, nid_f)
+
+
+def main():
     args = parse_cli_args()
-    # config_path = args.c
 
-    # mkdirs(config)
-    # init_all_loggers(config)
-    print("Done")
+    print(args)
 
-    # node_name = config.basic.role
-    # node_role = getattr(Roles, node_name)
-    # node_cls = ROLE_NODE_CLS_MAPPING.get(node_role)
-    # node = node_cls(config)
-
-    # if args.action == 'start':
-        # node.main()
-    # elif args.action == 'stop':
-        # try:
-            # node.shutdown()
-        # except PidFileNotExists:
-            # logger.info(
-                # 'pid file doesn\'t exists, seems Neverland is not running'
-            # )
-            # sys.exit(1)
-    # elif args.action == 'status':
-        # raise NotImplementedError('Not Implemented yet')
-    # elif args.action == 'clean':
-        # node.clean_files()
+    if args.action == 'gennid':
+        gen_nid(args.j, args.n)
+    elif args.action == 'start':
+        pass
+    elif args.action == 'stop':
+        pass
+    elif args.action == 'status':
+        pass
