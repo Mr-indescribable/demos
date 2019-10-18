@@ -62,7 +62,7 @@ cdef class NIDMgr():
     #     crossed:   1101010011110111
     #
     #     result: 11010100 11110111
-    cdef void _bit_cross(
+    cdef void __bit_cross(
         self,
         unsigned char *in_byte0,
         unsigned char *in_byte1,
@@ -125,7 +125,7 @@ cdef class NIDMgr():
     #     byte1:      1 1 1 0 1 1 1 1
     #
     #     result: 10001101 11101111
-    cdef void _bit_uncross(self, unsigned char *in_2bytes):
+    cdef void __bit_uncross(self, unsigned char *in_2bytes):
         cdef unsigned char byte0
         cdef unsigned char byte1
         cdef unsigned char mask
@@ -178,12 +178,12 @@ cdef class NIDMgr():
         self.__bu_buf[1] = r_byte1
 
     def bit_cross(self, byte0, byte1):
-        self._bit_cross(byte0, byte1)
+        self.__bit_cross(byte0, byte1)
 
         return self.__bc_buf[:2]
 
     def bit_uncross(self, in_2bytes):
-        self._bit_uncross(in_2bytes)
+        self.__bit_uncross(in_2bytes)
 
         return self.__bu_buf[0:1], self.__bu_buf[1:2]
 

@@ -33,7 +33,7 @@ def main():
 
     mkatfdir()
     os.system(f'cp -r {nvld_dir} {ATF_DIR}')
-    os.system(f'cp nvld.py {ATF_DIR}')
+    os.system(f'cp nl.py {ATF_DIR}')
 
 
 if __name__ == '__main__':
