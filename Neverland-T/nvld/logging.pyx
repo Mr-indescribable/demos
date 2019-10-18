@@ -2,8 +2,6 @@ import sys
 import logging
 from logging import handlers as logging_handlers
 
-from .exceptions import ConfigError
-
 
 # mapping names of loggers and the keyword of their config
 LOGGER_NAME_CONFIG_KW_MAPPING = {

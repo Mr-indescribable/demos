@@ -36,6 +36,9 @@ class GLBComponent:
 
 class GLBInfo:
 
+    config = None
+    div_set = None
+
     local_ip = None
 
     svr_tcp_port = None

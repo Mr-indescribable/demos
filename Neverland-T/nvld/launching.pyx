@@ -6,7 +6,6 @@ import argparse
 from .logging import init_all_loggers
 from .exceptions import ArgumentError, PidFileNotExists
 from .utils import Shell
-from .config import ConfigLoader
 
 
 logger = logging.getLogger('Main')
@@ -58,13 +57,10 @@ def mkdirs(config):
 
 def launch():
     args = parse_cli_args()
+    # config_path = args.c
 
-    config_path = args.c
-    config = ConfigLoader.load_json_file(config_path)
-
-    mkdirs(config)
-
-    init_all_loggers(config)
+    # mkdirs(config)
+    # init_all_loggers(config)
     print("Done")
 
     # node_name = config.basic.role

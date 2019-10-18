@@ -1,0 +1,54 @@
+{
+	"basic": {
+		"role": "CONTROLLER",
+		"node_id": 1,
+		"worker_amount": 1,
+		"pid_file": "/tmp/nl_ctrl.pid",
+		"is_entrance": true
+	},
+
+	"net": {
+		"identification": "controller",
+
+		"aff_listen_addr": "0.0.0.0",
+		"aff_listen_port": 17151,
+		"ipv6": false,
+
+		"crypto": {
+			"password": "a SUPER SUPER LONG AND VERY VERY INDESCRIBABLE pASSw0rD",
+			"cipher": "kc-aes-256-gcm",
+			"salt_len": 8,
+			"iv_duration_range": [1000, 2000]
+		}
+	},
+
+	"shm": {
+		"socket_dir": "/tmp/nl-ctrl/shm",
+		"manager_socket_name": "SHM-Manager.socket"
+	},
+
+	"log": {
+		"main": {
+			"level": "debug",
+			"path": "/tmp/nl-ctrl/log/nl.log",
+			"stdout": true
+		},
+		"shm": {
+			"level": "debug",
+			"path": "/tmp/nl-ctrl/log/shm.log",
+			"stdout": true
+		},
+		"conn": {
+			"level": "debug",
+			"path": "/tmp/nl-ctrl/log/conn.log",
+			"stdout": true
+		}
+	},
+
+	"cluster_nodes": {
+		"relay-0000": {
+			"ip": "192.168.1.7",
+			"role": "RELAY"
+		}
+	}
+}

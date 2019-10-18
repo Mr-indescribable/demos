@@ -1,28 +1,23 @@
 import json
 
-from .utils.od import ODict
-from .utils.misc import VerifiTools
-from .exceptions import ConfigError
-from .role import Roles
+from ..utils.od import ODict
+from ..utils.misc import VerifiTools
+from ..exceptions import ConfigError
+from ..role import Roles
+from ..glb import GLBInfo
 
 
-class ConfigLoader():
+class ConfigMgr():
 
-    @classmethod
-    def load_json_file(cls, path):
-        try:
-            with open(path, 'r') as f:
-                content = f.read()
-        except FileNotFoundError:
-            raise ConfigError(f'Config file not found: {path}')
-
-        content = json.loads(content)
+    def load(self, data):
+        content = json.loads(data)
         config = JsonConfig(**content)
-        cls.validate_config(config)
+        self.validate_config(config)
+
+        GLBInfo.config = config
         return config
 
-    @classmethod
-    def validate_config(cls, config):
+    def validate_config(self, config):
         basic = config.basic
         if not VerifiTools.type_matched(basic, ODict):
             raise ConfigError('basic block must be a JSON object')

@@ -1,9 +1,6 @@
-#!/usr/bin/python3.6
-#coding: utf-8
-
 import os
 
-from nvld.config import JsonConfig
+from nvld.components.conf import JsonConfig
 from nvld.utils.od import ODict
 from nvld.crypto import Cryptor
 from nvld.crypto.openssl import OpenSSLCryptor

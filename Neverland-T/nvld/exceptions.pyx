@@ -6,6 +6,10 @@ class ConfigError(Exception):
     pass
 
 
+class NIDError(ConfigError):
+    pass
+
+
 class PidFileNotExists(FileNotFoundError):
     pass
 

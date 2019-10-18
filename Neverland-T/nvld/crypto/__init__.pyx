@@ -32,7 +32,14 @@ class Cryptor():
     # type: str, format: "ip:port"
     attribution = None
 
-    def __init__(self, config, key=None, iv=None, attribution=None, stream=False):
+    def __init__(
+        self,
+        config,
+        key=None,
+        iv=None,
+        attribution=None,
+        stream_mod=False,
+    ):
         ''' Constructor
 
         :param config: the config
@@ -42,15 +49,15 @@ class Cryptor():
                    IV derived by neverland.utils.HashTools.hdivdf will be used
         :param attribution: a tag about which remote node that this cryptor
                             belongs to.
-        :param stream: if is argument is False, then the Cryptor will
-                       not work in stream mode, it will reset the cipher after
-                       each time of encryption or decryption
+        :param stream_mod: if is argument is False, then the Cryptor will
+                           not work in stream mode, it will reset the cipher
+                           after each time of encryption or decryption
         '''
 
         self.config = config
         self.attribution = attribution
 
-        self._stream = stream
+        self._stream_mod = stream_mod
 
         self.__identification = self.config.net.identification
         self.__passwd = self.config.net.crypto.password
@@ -60,7 +67,7 @@ class Cryptor():
         self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]
 
         self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = iv or HashTools.hdivdf(self.__identification, self._iv_len)
+        self._iv = iv or None
 
         if self._cipher_cls is None:
             raise Exception('unsupported cipher')
@@ -101,7 +108,7 @@ class Cryptor():
     def encrypt(self, data):
         data = self._cipher.update(data)
 
-        if not self._stream:
+        if not self._stream_mod:
             self._cipher.reset()
 
         return data
@@ -109,7 +116,7 @@ class Cryptor():
     def decrypt(self, data):
         data = self._decipher.update(data)
 
-        if not self._stream:
+        if not self._stream_mod:
             self._decipher.reset()
 
         return data
