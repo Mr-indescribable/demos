@@ -1,8 +1,6 @@
-#!/usr/bin/python3.6
-#coding: utf-8
-
+from ...glb import GLBInfo
 from ...pkt.general import FieldTypes, PktTypes
-from ..protocol.base import (
+from ..fmt import (
     FieldDefinition,
     BasePktFormat,
 )
@@ -15,18 +13,7 @@ from ..fc import (
 )
 
 
-'''
-In order to normalize the packets, we simply split them into 2 pieces.
-
-The first one is the header, it will be fixed on the head of a packet,
-it shall contain some common informations that all packets shall contain.
-
-The second one is the body, just like body field in HTTP,
-it shall contain the data we need to transfer.
-'''
-
-
-class HeaderFormat(BasePktFormat):
+class TCPHeaderFormat(BasePktFormat):
 
     ''' The format of packet headers
     '''
@@ -34,16 +21,14 @@ class HeaderFormat(BasePktFormat):
     __type__ = None
 
     @classmethod
-    def gen_fmt(cls, config):
+    def gen_fmt(cls):
         cls.__fmt__ = {
-            # Allows users to config it in the config file.
-            # This should be unified in the community.
-            'salt': FieldDefinition(
-                        length        = config.net.crypto.salt_len or 8,
-                        type          = FieldTypes.PY_BYTES,
-                        calculator    = salt_calculator,
-                        calc_priority = 0x00,
-                    ),
+            # Length of the packet
+            'len': FieldDefinition(
+                       length  = 2,
+                       type    = FieldTypes.STRUCT_U_SHORT,
+                       default = 0x00,
+                   ),
 
             # The Message Authentication Code.
             # In protocol v0, we use sha256 as the digest method,
@@ -53,13 +38,6 @@ class HeaderFormat(BasePktFormat):
                        type          = FieldTypes.PY_BYTES,
                        calculator    = mac_calculator,
                        calc_priority = 0xff,
-                   ),
-
-            # Length of the packet
-            'len': FieldDefinition(
-                       length  = 2,
-                       type    = FieldTypes.STRUCT_U_SHORT,
-                       default = 0x00,
                    ),
 
             # Each UDP packet shall have a serial number as its identifier.
@@ -91,7 +69,7 @@ class HeaderFormat(BasePktFormat):
             # The source of the packet
             # TODO ipv6 support
             'src': FieldDefinition(
-                       length = None if config.net.ipv6 else 6,
+                       length = None if GLBInfo.config.net.ipv6 else 6,
                        type   = FieldTypes.STRUCT_IPV4_SA,
                        calculator    = tcp_src_calculator,
                        calc_priority = 0x00,
@@ -100,13 +78,27 @@ class HeaderFormat(BasePktFormat):
             # The destination of the packet
             # TODO ipv6 support
             'dest': FieldDefinition(
-                        length = None if config.net.ipv6 else 6,
+                        length = None if GLBInfo.config.net.ipv6 else 6,
                         type   = FieldTypes.STRUCT_IPV4_SA,
                     ),
         }
 
 
-class DataPktFormat(BasePktFormat):
+class TCPDelimiterPktFormat(BasePktFormat):
+
+    __type__ = None
+
+    @classmethod
+    def gen_fmt(cls):
+        cls.__fmt__ = {
+            'delimiter': FieldDefinition(
+                             length = 32,
+                             type   = FieldTypes.PY_BYTES,
+                         )
+        }
+
+
+class TCPDataPktFormat(BasePktFormat):
 
     ''' The format of data packets' body
     '''
@@ -114,7 +106,7 @@ class DataPktFormat(BasePktFormat):
     __type__ = PktTypes.DATA
 
     @classmethod
-    def gen_fmt(cls, config):
+    def gen_fmt(cls):
         cls.__fmt__ = {
             # just the data
             'data': FieldDefinition(
@@ -124,7 +116,7 @@ class DataPktFormat(BasePktFormat):
         }
 
 
-class ConnCtrlPktFormat(BasePktFormat):
+class TCPConnCtrlPktFormat(BasePktFormat):
 
     ''' The format of connection controlling packets' body
     '''
@@ -132,7 +124,7 @@ class ConnCtrlPktFormat(BasePktFormat):
     __type__ = PktTypes.CONN_CTRL
 
     @classmethod
-    def gen_fmt(cls, config):
+    def gen_fmt(cls):
         cls.__fmt__ = {
             # An IPv4 address
             # this field should be set to all zero if IPv6 is in use
@@ -159,7 +151,7 @@ class ConnCtrlPktFormat(BasePktFormat):
         }
 
 
-class ClstCtrlPktFormat(BasePktFormat):
+class TCPClstCtrlPktFormat(BasePktFormat):
 
     ''' The format of cluster controlling packets' body
     '''
@@ -167,7 +159,7 @@ class ClstCtrlPktFormat(BasePktFormat):
     __type__ = PktTypes.CLST_CTRL
 
     @classmethod
-    def gen_fmt(cls, config):
+    def gen_fmt(cls):
         cls.__fmt__ = {
             # Literally, the subject field means what the node wants to do.
             # Enumerated in neverland.protocol.v0.subjects

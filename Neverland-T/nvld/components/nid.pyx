@@ -16,6 +16,7 @@ cdef class NIDMgr():
     # buffers used by self._bit_cross and self._bit_uncross
     cdef unsigned char __bc_buf[2]
     cdef unsigned char __bu_buf[2]
+
     cdef int _iv_len
 
     cdef public:

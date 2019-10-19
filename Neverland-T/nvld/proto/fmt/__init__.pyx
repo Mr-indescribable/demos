@@ -1,4 +1,4 @@
-from ..utils.od import ODict
+from ...utils.od import ODict
 
 
 class FieldDefinition(ODict):
@@ -56,10 +56,8 @@ class BasePktFormat():
     __calc_definition__ = dict()
 
     @classmethod
-    def gen_fmt(cls, config):
-        ''' generate __fmt__ attribute with config
-
-        An optional way to generate the packet format definition
+    def gen_fmt(cls):
+        ''' generates the __fmt__ attribute
         '''
 
     @classmethod

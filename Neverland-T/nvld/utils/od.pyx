@@ -52,7 +52,8 @@ class ODict():
     def __bool__(self):
         return bool(self.__container__)
 
-    def __get__(self, key):
+    # use __get__ instead will cause some confliction
+    def __getv__(self, key):
         return self.__container__.get(key)
 
     def __clear__(self):

@@ -5,6 +5,7 @@ from ..utils.hash import HashTools
 from .mode import Modes
 from .openssl import OpenSSLCryptor
 from .kc.aead.gcm import GCMKernelCryptor
+from ..glb import GLBInfo
 
 
 logger = logging.getLogger('Crypto')
@@ -34,7 +35,6 @@ class Cryptor():
 
     def __init__(
         self,
-        config,
         key=None,
         iv=None,
         attribution=None,
@@ -42,7 +42,6 @@ class Cryptor():
     ):
         ''' Constructor
 
-        :param config: the config
         :param key: optional, if this argument is not given, then the default
                     key derived by neverland.utils.HashTools.hkdf will be used
         :param iv: optional, if this argument is not given, then the default
@@ -54,14 +53,12 @@ class Cryptor():
                            after each time of encryption or decryption
         '''
 
-        self.config = config
         self.attribution = attribution
 
         self._stream_mod = stream_mod
 
-        self.__identification = self.config.net.identification
-        self.__passwd = self.config.net.crypto.password
-        self._cipher_name = self.config.net.crypto.cipher
+        self.__passwd = GLBInfo.config.net.crypto.password
+        self._cipher_name = GLBInfo.config.net.crypto.cipher
         self._cipher_cls = supported_ciphers.get(self._cipher_name)
         self._key_len = self._cipher_cls.key_len_map[self._cipher_name]
         self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]

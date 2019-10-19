@@ -6,20 +6,26 @@
 
 class GLBNodeState:
 
+    _INITED = True
+
     running = False
     state = None
 
 
 class GLBPktFmt:
 
-    udp_data = None
+    _INITED = False
 
     tcp_data      = None
     tcp_conn_ctrl = None
     tcp_clst_ctrl = None
 
+    udp_data = None
+
 
 class GLBComponent:
+
+    _INITED = False
 
     id_generator = None
 
@@ -35,6 +41,8 @@ class GLBComponent:
 
 
 class GLBInfo:
+
+    _INITED = False
 
     config = None
     div_set = None

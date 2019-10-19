@@ -6,8 +6,9 @@ import argparse
 from .logging import init_all_loggers
 from .exceptions import ArgumentError, PidFileNotExists
 from .utils.misc import Shell
-
 from .components.nid import NIDMgr
+from .ginit import ginit_glb_pktfmt, ginit_glb_info
+from .glb import GLBInfo
 
 
 logger = logging.getLogger('Main')
@@ -21,7 +22,7 @@ def parse_cli_args():
     argp.add_argument(
         'action',
         metavar='<action>',
-        help='The operation you want to do. Options: start/stop/status/gennid',
+        help='The operation you want to do. Options: start/stop/status/gennid/testconf',
     )
     argp.add_argument(
         '-n',
@@ -71,11 +72,25 @@ def gen_nid(json_f, nid_f):
 def main():
     args = parse_cli_args()
 
-    print(args)
-
     if args.action == 'gennid':
         gen_nid(args.j, args.n)
-    elif args.action == 'start':
+        exit(0)
+
+    ginit_glb_info(args)
+
+    if args.action == 'testconf':
+        # The test has been done while loading the config.
+        # So, nothing to be done hear.
+
+        if GLBInfo.config.config_visible:
+            print(GLBInfo.config)
+
+        print('\nSuccessfully loaded config file.')
+        exit(0)
+
+    ginit_glb_pktfmt()
+
+    if args.action == 'start':
         pass
     elif args.action == 'stop':
         pass

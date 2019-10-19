@@ -30,8 +30,8 @@ class PacketWrapper():
         except socket addresses.
     '''
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self):
+        pass
 
     def _find_fmt(self, proto, type_):
         if proto == PktProto.TCP:
@@ -81,7 +81,7 @@ class PacketWrapper():
             value = getattr(pkt.fields, field_name)
 
             if value is None:
-                value = definition.calculator(pkt, self.header_fmt, body_fmt)
+                value = definition.calculator(pkt)
 
                 if value is None:
                     raise PktWrappingError(

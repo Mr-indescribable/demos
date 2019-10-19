@@ -18,11 +18,14 @@ class ConfigMgr():
         return config
 
     def validate_config(self, config):
+        if not VerifiTools.type_matched(config.config_visible, bool):
+            raise ConfigError('config_visible must be a boolean')
+
         basic = config.basic
         if not VerifiTools.type_matched(basic, ODict):
             raise ConfigError('basic block must be a JSON object')
-        if not VerifiTools.type_matched(basic.role, str):
-            raise ConfigError('basic.role must be a string')
+        if not VerifiTools.type_matched(basic.role, int):
+            raise ConfigError('basic.role must be a integer')
         if not VerifiTools.type_matched(basic.node_id, int):
             raise ConfigError('basic.node_id must be an integer')
         if not VerifiTools.type_matched(basic.worker_amount, int):
@@ -30,31 +33,46 @@ class ConfigMgr():
         if not VerifiTools.type_matched(basic.pid_file, str):
             raise ConfigError('basic.pid_file must be a string')
 
-        if basic.role not in Roles._keys():
+        if basic.role not in Roles._values():
             raise ConfigError(f'basic.role is invalid')
 
         net = config.net
-        if not VerifiTools.type_matched(basic, ODict):
+        if not VerifiTools.type_matched(net, ODict):
             raise ConfigError('net block must be a JSON object')
         if not VerifiTools.type_matched(net.identification, str):
             raise ConfigError('net.identification must be a string')
-        if not VerifiTools.type_matched(net.aff_listen_addr, str):
-            raise ConfigError('net.aff_listen_addr must be a string')
-        if not VerifiTools.type_matched(net.aff_listen_port, int):
-            raise ConfigError('net.aff_listen_port must be an integer')
-
+        if not VerifiTools.type_matched(net.ipv6, bool):
+            raise ConfigError('net.ipv6 must be a boolean')
         if net.ipv6 is True:
             raise ConfigError('IPv6 is not supported yet.')
 
+        if not VerifiTools.type_matched(net.tcp.aff_listen_addr, str):
+            raise ConfigError('net.tcp.aff_listen_addr must be a string')
+        if not VerifiTools.type_matched(net.tcp.aff_listen_port, int):
+            raise ConfigError('net.tcp.aff_listen_port must be an integer')
+
+        if not VerifiTools.type_matched(net.udp.aff_listen_addr, str):
+            raise ConfigError('net.udp.aff_listen_addr must be a string')
+        if not VerifiTools.type_matched(net.udp.aff_listen_port, int):
+            raise ConfigError('net.udp.aff_listen_port must be an integer')
+
         if net.ipv6:
-            if not VerifiTools.is_ipv6(net.aff_listen_addr):
+            if not VerifiTools.is_ipv6(net.tcp.aff_listen_addr):
                 raise ConfigError(
-                    'net.aff_listen_addr is not a valid IPv6 address'
+                    'net.tcp.aff_listen_addr is not a valid IPv6 address'
+                )
+            if not VerifiTools.is_ipv6(net.udp.aff_listen_addr):
+                raise ConfigError(
+                    'net.udp.aff_listen_addr is not a valid IPv6 address'
                 )
         else:
-            if not VerifiTools.is_ipv4(net.aff_listen_addr):
+            if not VerifiTools.is_ipv4(net.tcp.aff_listen_addr):
                 raise ConfigError(
-                    'net.aff_listen_addr is not a valid IPv4 address'
+                    'net.tcp.aff_listen_addr is not a valid IPv4 address'
+                )
+            if not VerifiTools.is_ipv4(net.tcp.aff_listen_addr):
+                raise ConfigError(
+                    'net.udp.aff_listen_addr is not a valid IPv4 address'
                 )
 
         crypto = net.crypto

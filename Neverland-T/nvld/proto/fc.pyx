@@ -7,29 +7,34 @@ from .fmt import ComplexedFormat
 from ..pkt.general import PktTypes, PktProto
 
 
-''' field calculators for PktFormat classes
-'''
+# field calculators for PktFormat classes
 
 
-def tcp_src_calculator(pkt, header_fmt, body_fmt):
+TCP_PKT_DELIMITER = b'\xff' * 32
+
+
+def tcp_delimiter_calculator(pkt):
+    return TCP_PKT_DELIMITER
+
+
+def tcp_src_calculator(pkt):
     return (GLBInfo.local_ip, GLBInfo.listen_tcp_port)
 
 
-def udp_src_calculator(pkt, header_fmt, body_fmt):
+def udp_src_calculator(pkt):
     return (GLBInfo.local_ip, GLBInfo.listen_udp_port)
 
 
-def sn_calculator(pkt, header_fmt, body_fmt):
+def sn_calculator(pkt):
     return GLBComponent.id_generator.gen()
 
 
-def salt_calculator(pkt, header_fmt, body_fmt):
-    salt_definition = header_fmt.__fmt__.get('salt')
-    salt_len = salt_definition.length
+def salt_calculator(pkt):
+    salt_len = GLBInfo.config.net.crypto.salt_len
     return os.urandom(salt_len)
 
 
-def mac_calculator(pkt, header_fmt, body_fmt):
+def mac_calculator(pkt):
     ''' calculator for calculating the mac field
 
     Rule of the mac calculating:
@@ -69,7 +74,7 @@ def mac_calculator(pkt, header_fmt, body_fmt):
     return HashTools.sha256(data_2_hash).encode()
 
 
-def time_calculator(*_):
+def time_calculator(pkt):
     ''' calculator for the time field
     '''
 

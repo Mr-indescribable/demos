@@ -1,6 +1,8 @@
 {
+	"config_visible": true,
+
 	"basic": {
-		"role": "CONTROLLER",
+		"role": 4,
 		"node_id": 1,
 		"worker_amount": 1,
 		"pid_file": "/tmp/nl_ctrl.pid",
@@ -9,10 +11,17 @@
 
 	"net": {
 		"identification": "controller",
-
-		"aff_listen_addr": "0.0.0.0",
-		"aff_listen_port": 17151,
 		"ipv6": false,
+
+		"tcp": {
+			"aff_listen_addr": "0.0.0.0",
+			"aff_listen_port": 17151
+		},
+
+		"udp": {
+			"aff_listen_addr": "0.0.0.0",
+			"aff_listen_port": 17152
+		},
 
 		"crypto": {
 			"password": "a SUPER SUPER LONG AND VERY VERY INDESCRIBABLE pASSw0rD",
