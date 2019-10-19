@@ -1,10 +1,17 @@
 import os
 
+from nvld.glb import GLBInfo, GLBComponent
 from nvld.components.conf import JsonConfig
+from nvld.components.div import DefaultIVMgr
 from nvld.utils.od import ODict
 from nvld.crypto import Cryptor
 from nvld.crypto.openssl import OpenSSLCryptor
 from nvld.crypto.kc.aead.gcm import GCMKernelCryptor
+
+
+div_mgr = DefaultIVMgr()
+div_mgr.load( os.urandom(32 * 12) )
+GLBComponent.div_mgr = div_mgr
 
 
 crypto_config_dict = {
@@ -22,24 +29,27 @@ crypto_config_dict = {
 }
 
 
-def test_openssl():
+def _update_config(**kwargs):
     config = JsonConfig(**crypto_config_dict)
+    config.net.crypto.__update__(**kwargs)
 
+    GLBInfo.config = config
+
+
+def test_openssl():
     for cipher_name in OpenSSLCryptor.supported_ciphers:
-        config.net.crypto.__update__(cipher=cipher_name)
-        _test_cipher(config)
+        _update_config(cipher=cipher_name)
+        _test_cipher()
 
 
 def test_kc_gcm():
-    config = JsonConfig(**crypto_config_dict)
-
     for cipher_name in GCMKernelCryptor.supported_ciphers:
-        config.net.crypto.__update__(cipher=cipher_name)
-        _test_cipher(config)
+        _update_config(cipher=cipher_name)
+        _test_cipher()
 
 
-def _test_cipher(config):
-    cryptor = Cryptor(config)
+def _test_cipher():
+    cryptor = Cryptor()
 
     for _ in range(1024):
         src_data = os.urandom(65536)

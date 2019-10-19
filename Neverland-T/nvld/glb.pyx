@@ -27,6 +27,8 @@ class GLBComponent:
 
     _INITED = False
 
+    div_mgr = None
+
     id_generator = None
 
     default_cryptor = None
@@ -45,7 +47,7 @@ class GLBInfo:
     _INITED = False
 
     config = None
-    div_set = None
+    div_list = None
 
     local_ip = None
 

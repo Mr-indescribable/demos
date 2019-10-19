@@ -19,16 +19,15 @@ from ..exceptions import (
 
 class PacketWrapper():
 
-    ''' The PacketWrapper class
-
-    PacketWrappers are used in wrapping or unwrapping the packets.
-    They pack the field values into bytes that can be transmitted or
-    parse the received bytes into defined fields.
-
-    Byte Order:
-        In the current implementation, we use little-endian on most fields ,
-        except socket addresses.
-    '''
+    # The PacketWrapper class
+    #
+    # PacketWrappers are used in wrapping or unwrapping the packets.
+    # They pack the field values into bytes that can be transmitted or
+    # parse the received bytes into defined fields.
+    #
+    # Byte Order:
+    #     In the current implementation, we use little-endian on most fields,
+    #     except socket addresses.
 
     def __init__(self):
         pass
@@ -103,12 +102,11 @@ class PacketWrapper():
         return udp_data
 
     def _pack_field(self, value, field_type):
-        ''' pack a single field
-
-        :param value: value of the field
-        :param field_type: type of the field, select from FieldTypes
-        :return: bytes
-        '''
+        # pack a single field
+        #
+        # param value: value of the field
+        # param field_type: type of the field, select from FieldTypes
+        # return: bytes
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
             return pystruct.pack('<B', value)
@@ -207,12 +205,11 @@ class PacketWrapper():
         return fields, byte_fields
 
     def _unpack_field(self, data, field_type):
-        ''' unpack a single field
-
-        :param data: bytes
-        :param field_type: type of the field, choosed from FieldTypes
-        :return: the unpacked value
-        '''
+        # unpack a single field
+        #
+        # param data: bytes
+        # param field_type: type of the field, choosed from FieldTypes
+        # return: the unpacked value
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
             return pystruct.unpack('<B', data)[0]

@@ -1,6 +1,15 @@
 import json
 
 
+# The objectified dict class
+#
+# With this class, we can access dict values
+# just like accessing attributes in an object
+#
+# e.g:
+#     od = ODict(a=1, b=2)
+#     od.a
+#     od.b
 class ODict():
 
     def __getattribute__(self, name):

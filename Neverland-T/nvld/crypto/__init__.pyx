@@ -1,11 +1,11 @@
 import logging
 
-from ..exceptions import ArgumentError
+from ..exceptions import ConfigError
 from ..utils.hash import HashTools
 from .mode import Modes
 from .openssl import OpenSSLCryptor
 from .kc.aead.gcm import GCMKernelCryptor
-from ..glb import GLBInfo
+from ..glb import GLBInfo, GLBComponent
 
 
 logger = logging.getLogger('Crypto')
@@ -40,18 +40,17 @@ class Cryptor():
         attribution=None,
         stream_mod=False,
     ):
-        ''' Constructor
-
-        :param key: optional, if this argument is not given, then the default
-                    key derived by neverland.utils.HashTools.hkdf will be used
-        :param iv: optional, if this argument is not given, then the default
-                   IV derived by neverland.utils.HashTools.hdivdf will be used
-        :param attribution: a tag about which remote node that this cryptor
-                            belongs to.
-        :param stream_mod: if is argument is False, then the Cryptor will
-                           not work in stream mode, it will reset the cipher
-                           after each time of encryption or decryption
-        '''
+        # Constructor
+        #
+        # :param key: optional, if this argument is not given, then the default
+        #             key derived by neverland.utils.HashTools.hkdf will be used
+        # :param iv: optional, if this argument is not given, then the default
+        #            IV derived by neverland.utils.HashTools.hdivdf will be used
+        # :param attribution: a tag about which remote node that this cryptor
+        #                     belongs to.
+        # :param stream_mod: if is argument is False, then the Cryptor will
+        #                    not work in stream mode, it will reset the cipher
+        #                    after each time of encryption or decryption
 
         self.attribution = attribution
 
@@ -64,10 +63,13 @@ class Cryptor():
         self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]
 
         self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = iv or None
+        self._iv = iv or GLBComponent.div_mgr.random_div()
+
+        self._key = self._key[:self._key_len]
+        self._iv = self._iv[:self._iv_len]
 
         if self._cipher_cls is None:
-            raise Exception('unsupported cipher')
+            raise ConfigError('unsupported cipher')
 
         if self._cipher_name.startswith('kc-'):
             self._cipher_cls.check_kernel_version()

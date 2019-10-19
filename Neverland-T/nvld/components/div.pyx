@@ -1,4 +1,5 @@
 import os
+import random
 
 from ..glb import GLBInfo
 
@@ -14,12 +15,15 @@ class DefaultIVMgr():
 
     def load(self, data):
         cur = 0
-        iv_set = set()
+        iv_list = list()
         remaining = len(data)
 
         while remaining >= self._iv_len:
-            iv_set.add( data[cur: cur + self._iv_len] )
+            iv_list.append( data[cur: cur + self._iv_len] )
             cur += self._iv_len
             remaining -= self._iv_len
 
-        GLBInfo.div_set = iv_set
+        GLBInfo.div_list = iv_list
+
+    def random_div(self):
+        return random.choice(GLBInfo.div_list)
