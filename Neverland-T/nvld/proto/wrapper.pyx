@@ -104,9 +104,9 @@ class PacketWrapper():
     def _pack_field(self, value, field_type):
         # pack a single field
         #
-        # param value: value of the field
-        # param field_type: type of the field, select from FieldTypes
-        # return: bytes
+        # :param value: value of the field
+        # :param field_type: type of the field, select from FieldTypes
+        # :returns: bytes
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
             return pystruct.pack('<B', value)
@@ -146,21 +146,76 @@ class PacketWrapper():
                 )
 
     def unwrap(self, pkt):
-        raise NotImplemented
+        if pkt.proto == PktProto.TCP:
+            fields, byte_fields, fmt = self._parse_tcp_pkt(pkt)
 
-    def _parse_pkt(self, pkt):
+            if self._validate_mac(byte_fields):
+                pkt.fields = fields
+                pkt.byte_fields = byte_fields
+
+                pkt.valid = True
+                pkt.type = pkt.fields.type
+            else:
+                pkt.fields = None
+                pkt.byte_fields = None
+                pkt.valid = False
+                pkt.type = None
+        elif pkt.proto == PktProto.UDP:
+            pass
+        else:
+            pass
+
+    def _validate_mac(self, byte_fields, fmt):
+        data_2_hash = b''
+
+        for field_name, definition in fmt.__fmt__.items():
+            if field_name == 'mac':
+                continue
+
+            data_2_hash += getattr(byte_fields, field_name)
+
+        return HashTools.sha256(data_2_hash).encode() == byte_fields.mac
+
+    def _parse_tcp_pkt(self, pkt):
         cur = 0   # cursor
         fields = ODict()
         byte_fields = ODict()
+        data = pkt.data
 
-        # parse the header first
-        for field_name, definition in self.header_fmt.__fmt__.items():
+        if len(data < 7):
+            raise InvalidPkt('packet too short')
+
+        # parse first 3 fields: rsv, len, type
+        for field_name, definition in TCPHeaderFormat.__fmt__.items():
+            field_data = data[cur: cur + definition.length]
+
+            try:
+                value = self._unpack_field(field_data, definition.type)
+            except pystruct.error:
+                raise InvalidPkt('unpack failed')
+
+            fields.__update__(**{field_name: value})
+            byte_fields.__update__(**{field_name: field_data})
+            cur += definition.length
+
+            if field_name == 'type':
+                break
+
+        fmt = self._find_fmt(PktProto.TCP, fields.type)
+        if fmt == None:
+            raise InvalidPkt('unknown fmt')
+
+        # parse the rest of the packet
+        for field_name, definition in fmt.__fmt__.items():
+            if field_name in ('rsv', 'len', 'type'):
+                continue
+
             # -1 means this field is the last field of the packet
             # and it consumes all remaining space of the packet
             if definition.length == -1:
-                field_data = pkt.data[cur:]
+                field_data = data[cur:]
             else:
-                field_data = pkt.data[cur: cur + definition.length]
+                field_data = data[cur: cur + definition.length]
 
             # Packet too short, it must be invalid
             if len(field_data) == 0:
@@ -180,36 +235,14 @@ class PacketWrapper():
         if body_fmt is None:
             raise InvalidPkt('invalid type')
 
-        # parse the body
-        for field_name, definition in body_fmt.__fmt__.items():
-            # -1 means this field is the last fields of the packet
-            # and it consumes all remaining space of the packet
-            if definition.length == -1:
-                field_data = pkt.data[cur:]
-            else:
-                field_data = pkt.data[cur: cur + definition.length]
-
-            # Packet too short, it must be invalid
-            if len(field_data) == 0:
-                raise InvalidPkt('packet too short')
-
-            try:
-                value = self._unpack_field(field_data, definition.type)
-            except pystruct.error:
-                raise InvalidPkt('unpack failed')
-
-            fields.__update__(**{field_name: value})
-            byte_fields.__update__(**{field_name: field_data})
-            cur += definition.length
-
-        return fields, byte_fields
+        return fields, byte_fields, fmt
 
     def _unpack_field(self, data, field_type):
         # unpack a single field
         #
-        # param data: bytes
-        # param field_type: type of the field, choosed from FieldTypes
-        # return: the unpacked value
+        # :param data: bytes
+        # :param field_type: type of the field, choosed from FieldTypes
+        # :returns: the unpacked value
 
         if field_type == FieldTypes.STRUCT_U_CHAR:
             return pystruct.unpack('<B', data)[0]

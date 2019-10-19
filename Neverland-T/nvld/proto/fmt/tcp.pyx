@@ -5,6 +5,7 @@ from ..fmt import (
     BasePktFormat,
 )
 from ..fc import (
+    tcp_len_calculator,
     tcp_src_calculator,
     salt_calculator,
     mac_calculator,
@@ -13,22 +14,43 @@ from ..fc import (
 )
 
 
+RESERVED_FIELD_VALUE  = b'\x00' * 4
+DELIMITER_FIELD_VALUE = b'\xff' * 32
+
+
 class TCPHeaderFormat(BasePktFormat):
 
-    ''' The format of packet headers
-    '''
+    # The format of the header of TCP packet
 
     __type__ = None
 
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
+            # Reserved field, should be 0x00000000 within transmission
+            'rsv': FieldDefinition(
+                       length  = 4,
+                       type    = FieldTypes.PY_BYTES,
+                       default = RESERVED_FIELD_VALUE,
+                   ),
+
             # Length of the packet
             'len': FieldDefinition(
                        length  = 2,
                        type    = FieldTypes.STRUCT_U_SHORT,
-                       default = 0x00,
+                       calculator    = tcp_len_calculator,
+                       calc_priority = 0xfe,
                    ),
+
+            # Packet type,
+            # 0x01 for data packets,
+            # 0x02 for controlling packets,
+            # 0x03 for connection controlling packets
+            # 0x04 for connection controlling ACK
+            'type': FieldDefinition(
+                        length = 1,
+                        type   = FieldTypes.STRUCT_U_CHAR,
+                    ),
 
             # The Message Authentication Code.
             # In protocol v0, we use sha256 as the digest method,
@@ -47,24 +69,6 @@ class TCPHeaderFormat(BasePktFormat):
                       calculator    = sn_calculator,
                       calc_priority = 0x00,
                   ),
-
-            # The timestamp of the creation of the packet
-            'time': FieldDefinition(
-                        length        = 8,
-                        type          = FieldTypes.STRUCT_U_LONG_LONG,
-                        calculator    = time_calculator,
-                        calc_priority = 0x00,
-                    ),
-
-            # Packet type,
-            # 0x01 for data packets,
-            # 0x02 for controlling packets,
-            # 0x03 for connection controlling packets
-            # 0x04 for connection controlling ACK
-            'type': FieldDefinition(
-                        length = 1,
-                        type   = FieldTypes.STRUCT_U_CHAR,
-                    ),
 
             # The source of the packet
             # TODO ipv6 support
@@ -92,8 +96,9 @@ class TCPDelimiterPktFormat(BasePktFormat):
     def gen_fmt(cls):
         cls.__fmt__ = {
             'delimiter': FieldDefinition(
-                             length = 32,
-                             type   = FieldTypes.PY_BYTES,
+                             length  = 32,
+                             type    = FieldTypes.PY_BYTES,
+                             default = DELIMITER_FIELD_VALUE,
                          )
         }
 
@@ -171,7 +176,7 @@ class TCPClstCtrlPktFormat(BasePktFormat):
             # Just like invoking a function with arguments, the content field
             # contains arguments for the selected subject.
             # The format of content field is stringified JSON.
-            'content': FieldDefinition(
+            'args': FieldDefinition(
                            length = -1,
                            type   = FieldTypes.PY_DICT,
                        ),
