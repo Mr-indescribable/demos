@@ -51,6 +51,16 @@ def ginit_glb_pktfmt():
     GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPClstCtrlPktFormat)
     GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPDelimiterPktFormat)
 
+    TCPHeaderFormat.sort_calculators()
+    TCPDelimiterPktFormat.sort_calculators()
+    TCPDataPktFormat.sort_calculators()
+    TCPConnCtrlPktFormat.sort_calculators()
+    TCPClstCtrlPktFormat.sort_calculators()
+
+    GLBPktFmt.tcp_data.sort_calculators()
+    GLBPktFmt.tcp_conn_ctrl.sort_calculators()
+    GLBPktFmt.tcp_clst_ctrl.sort_calculators()
+
 
 def ginit_glb_info(args):
     if GLBInfo._INITED:

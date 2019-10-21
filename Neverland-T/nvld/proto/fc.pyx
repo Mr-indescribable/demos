@@ -17,7 +17,7 @@ TCP_CONN_CTRL_LEN = 4 + 16 + 2 + 1
 
 
 def tcp_len_calculator(pkt):
-    if pkt.type == PktTypes.data:
+    if pkt.type == PktTypes.DATA:
         body_len = len(pkt.byte_fields.data)
     elif pkt.type == PktTypes.CONN_CTRL:
         body_len = TCP_CONN_CTRL_LEN
@@ -75,11 +75,11 @@ def tcp_mac_calculator(pkt):
 
 
 def tcp_src_calculator(pkt):
-    return (GLBInfo.local_ip, GLBInfo.listen_tcp_port)
+    return (GLBInfo.local_ip, GLBInfo.svr_tcp_port)
 
 
 def udp_src_calculator(pkt):
-    return (GLBInfo.local_ip, GLBInfo.listen_udp_port)
+    return (GLBInfo.local_ip, GLBInfo.svr_udp_port)
 
 
 def sn_calculator(pkt):

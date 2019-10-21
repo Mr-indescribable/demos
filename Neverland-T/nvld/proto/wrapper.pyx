@@ -151,7 +151,7 @@ class PacketWrapper():
         if pkt.proto == PktProto.TCP:
             fields, byte_fields, fmt = self._parse_tcp_pkt(pkt)
 
-            if self._validate_mac(byte_fields):
+            if self._validate_mac(byte_fields, fmt):
                 pkt.fields = fields
                 pkt.byte_fields = byte_fields
 
@@ -162,10 +162,13 @@ class PacketWrapper():
                 pkt.byte_fields = None
                 pkt.valid = False
                 pkt.type = None
+                raise InvalidPkt('MAC verification failed')
         elif pkt.proto == PktProto.UDP:
             pass
         else:
             pass
+
+        return pkt
 
     def _validate_mac(self, byte_fields, fmt):
         data_2_hash = b''
@@ -184,7 +187,7 @@ class PacketWrapper():
         byte_fields = ODict()
         data = pkt.data
 
-        if len(data < 7):
+        if len(data) < 7:
             raise InvalidPkt('packet too short')
 
         # parse first 3 fields: rsv, len, type
@@ -205,7 +208,7 @@ class PacketWrapper():
 
         fmt = self._find_fmt(PktProto.TCP, fields.type)
         if fmt == None:
-            raise InvalidPkt('unknown fmt')
+            raise InvalidPkt('unknown format')
 
         # parse the rest of the packet
         for field_name, definition in fmt.__fmt__.items():

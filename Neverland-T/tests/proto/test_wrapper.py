@@ -301,13 +301,15 @@ def test_make_n_parse_tcp_pkt():
     }
 
     # preparation completed, now we do the test
-    for pkt_type, body_fmt in pkts.items():
+    for pkt_type, pkt in pkts.items():
+        fmt = packet_wrapper._find_fmt(pkt.proto, pkt_type)
         original_pkt = pkts.get(pkt_type)
-        udp_data = packet_wrapper.wrap(original_pkt)
+        wrapped_pkt = packet_wrapper.wrap(original_pkt)
 
         pkt_to_parse = TCPPacket()
-        pkt_to_parse.data = udp_data
-        parsed_fields, parsed_byte_fields = packet_wrapper.unwrap(pkt_to_parse)
+        pkt_to_parse.proto = PktProto.TCP
+        pkt_to_parse.data = wrapped_pkt.data
+        unwrapped_pkt = packet_wrapper.unwrap(pkt_to_parse)
 
-        packet_wrapper._validate_pkt(parsed_fields, parsed_byte_fields)
-        assert original_pkt.fields.__to_dict__() == parsed_fields.__to_dict__()
+        packet_wrapper._validate_mac(unwrapped_pkt.byte_fields, fmt)
+        assert original_pkt.fields.__to_dict__() == unwrapped_pkt.fields.__to_dict__()
