@@ -1,4 +1,4 @@
-from ..utils import ODict
+from ..utils.od import ODict
 
 
 class TCPPacket(ODict):

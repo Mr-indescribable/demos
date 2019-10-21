@@ -7,8 +7,8 @@ from ..fmt import (
 from ..fc import (
     tcp_len_calculator,
     tcp_src_calculator,
+    tcp_mac_calculator,
     salt_calculator,
-    mac_calculator,
     sn_calculator,
     time_calculator,
 )
@@ -58,7 +58,7 @@ class TCPHeaderFormat(BasePktFormat):
             'mac': FieldDefinition(
                        length        = 64,
                        type          = FieldTypes.PY_BYTES,
-                       calculator    = mac_calculator,
+                       calculator    = tcp_mac_calculator,
                        calc_priority = 0xff,
                    ),
 
@@ -131,27 +131,25 @@ class TCPConnCtrlPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            # An IPv4 address
+            # An IPv4 socket address
             # this field should be set to all zero if IPv6 is in use
             'v4ip': FieldDefinition(
-                        length = 4,
-                        type   = FieldTypes.STRUCT_IPV4_SA,
+                        length  = 6,
+                        type    = FieldTypes.STRUCT_IPV4_SA,
+                        default = b'\x00' * 6,
                     ),
-            # An IPv6 address
+            # An IPv6 socket address
             # this fields should be set to all zero if IPv4 is in use
             'v6ip': FieldDefinition(
-                        length = 16,
-                        type   = FieldTypes.STRUCT_IPV6_SA,
-                    ),
-            # The port
-            'port': FieldDefinition(
-                        length = 2,
-                        type   = FieldTypes.STRUCT_U_SHORT,
+                        length  = 18,
+                        type    = FieldTypes.STRUCT_IPV6_SA,
+                        default = b'\x00' * 18,
                     ),
             # A boolean in int type that indicates whether we are using IPv4
             'v4': FieldDefinition(
-                      length = 1,
-                      type   = FieldTypes.STRUCT_U_CHAR,
+                      length  = 1,
+                      type    = FieldTypes.STRUCT_U_CHAR,
+                      default = 1,
                   ),
         }
 

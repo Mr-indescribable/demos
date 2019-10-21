@@ -5,7 +5,6 @@ import struct as pystruct
 
 from ..pkt.general import PktProto, PktTypes, FieldTypes
 from ..glb import GLBPktFmt
-from ..pkt.udp import UDPPacket
 from ..utils.od import ODict
 from ..utils.hash import HashTools
 from ..utils.misc import Converter, get_localhost_ip
@@ -15,6 +14,7 @@ from ..exceptions import (
     InvalidPkt,
     DecryptionFailed,
 )
+from .fmt.tcp import TCPHeaderFormat
 
 
 class PacketWrapper():
@@ -48,13 +48,15 @@ class PacketWrapper():
     def wrap(self, pkt):
         pkt_fmt = self._find_fmt(pkt.proto, pkt.fields.type)
 
+        if pkt_fmt is None:
+            raise PktWrappingError('Invalid type or proto')
+
         pkt.type = pkt.fields.type
         pkt.data = self._make_pkt(pkt, pkt_fmt)
         return pkt
 
-    def _make_pkt(self, pkt, body_fmt):
+    def _make_pkt(self, pkt, fmt):
         udp_data = b''
-        fmt = self.complexed_fmt_mapping.get(pkt.fields.type)
 
         for field_name, definition in fmt.__fmt__.items():
             value = getattr(pkt.fields, field_name)

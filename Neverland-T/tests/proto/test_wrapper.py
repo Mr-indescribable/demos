@@ -4,34 +4,42 @@ import struct
 
 import pytest
 
-from nvld.config import JsonConfig
-from nvld.utils import ODict
-from nvld.components.idg import IDGenerator
-from nvld.pkt.general import PktTypes, FieldTypes
+from nvld.glb import GLBInfo, GLBComponent
+from nvld.ginit import ginit_glb_pktfmt
+from nvld.utils.od import ODict
+from nvld.pkt.general import PktTypes, FieldTypes, PktProto
 from nvld.pkt.tcp import TCPPacket
-from nvld.pkt.udp import UDPPacket
 from nvld.proto.wrapper import PacketWrapper
-
-from neverland.protocol.v0.fmt import (
-    HeaderFormat,
-    DataPktFormat,
-    CtrlPktFormat,
-    ConnCtrlPktFormat,
-    ConnCtrlAckPktFormat,
-)
+from nvld.components.conf import JsonConfig
+from nvld.components.idg import IDGenerator
 
 
-wrapper_config_dict = {
-    'net': {
-        'crypto': {
-            'salt_len': 8,
-            'iv_len': 12,
+def _ginit():
+    config_dict = {
+        'net': {
+            'ipv6': False,
+            'crypto': {
+                'salt_len': 8,
+            }
         }
     }
-}
-wrapper_config = JsonConfig(**wrapper_config_dict)
 
-packet_wrapper = ProtocolWrapper(wrapper_config)
+    GLBInfo.config       = JsonConfig(**config_dict)
+    GLBInfo.local_ip     = '127.0.0.1'
+    GLBInfo.svr_tcp_port = 10000
+    GLBInfo.svr_udp_port = 20000
+    GLBInfo.svr_tcp_sa   = (GLBInfo.local_ip, GLBInfo.svr_tcp_port)
+    GLBInfo.svr_udp_sa   = (GLBInfo.local_ip, GLBInfo.svr_udp_port)
+    GLBInfo._INITED = True
+
+    ginit_glb_pktfmt()
+
+    GLBComponent.id_generator = IDGenerator(1, 1)
+    GLBComponent._INITED = True
+
+
+_ginit()
+packet_wrapper = PacketWrapper()
 
 
 def _test_pack_numeral_type(type_, struct_fmt, value, v_uplimit):
@@ -69,7 +77,7 @@ def test_pack_field_u_short():
 
     for num in range(uplimit - 100, uplimit + 10):
         _test_pack_numeral_type(
-            type_      = FieldTypes.STRUCT_U_CHAR,
+            type_      = FieldTypes.STRUCT_U_SHORT,
             struct_fmt = 'H',
             value      = num,
             v_uplimit  = uplimit,
@@ -252,68 +260,54 @@ def test_unpack_field_py_dict():
     assert data == res
 
 
-def _init_glb():
-    NodeContext.local_ip = '127.0.0.1'
-    NodeContext.listen_port = 40000
-    NodeContext.id_generator = IDGenerator(0x01, 0x01)
-
-
-def test_make_n_parse_udp_pkt():
-    _init_glb()
-
+def test_make_n_parse_tcp_pkt():
     # Prepare 4 types of packets
     data_pkt_fields = {
         'type': PktTypes.DATA,
         'dest': ('127.0.0.1', 40000),
-        'data': os.urandom(40000),
+        'data': os.urandom(2000),
     }
-    data_pkt = UDPPacket()
-    data_pkt.fields = ObjectifiedDict(**data_pkt_fields)
-
-    ctrl_pkt_fields = {
-        'type': PktTypes.CTRL,
-        'dest': ('127.0.0.1', 40000),
-        'subject': 0x01,
-        'content': {'a': 1, 'b': True},
-    }
-    ctrl_pkt = UDPPacket()
-    ctrl_pkt.fields = ObjectifiedDict(**ctrl_pkt_fields)
+    data_pkt = TCPPacket()
+    data_pkt.proto = PktProto.TCP
+    data_pkt.type = PktTypes.DATA
+    data_pkt.fields = ODict(**data_pkt_fields)
 
     conn_ctrl_pkt_fields = {
         'type': PktTypes.CONN_CTRL,
         'dest': ('127.0.0.1', 40000),
-        'communicating': 0x01,
-        'iv_changed': 0x01,
-        'iv_duration': 0xFFFFFFFFF,
-        'iv': os.urandom(wrapper_config.net.crypto.iv_len),
+        'v4ip': ('127.0.0.1', 100),
+        'v4': 1,
     }
-    conn_ctrl_pkt = UDPPacket()
-    conn_ctrl_pkt.fields = ObjectifiedDict(**conn_ctrl_pkt_fields)
+    conn_ctrl_pkt = TCPPacket()
+    conn_ctrl_pkt.proto = PktProto.TCP
+    conn_ctrl_pkt.type = PktTypes.CONN_CTRL
+    conn_ctrl_pkt.fields = ODict(**conn_ctrl_pkt_fields)
 
-    conn_ctrl_ack_pkt_fields = {
-        'type': PktTypes.CONN_CTRL_ACK,
+    clst_ctrl_pkt_fields = {
+        'type': PktTypes.CLST_CTRL,
         'dest': ('127.0.0.1', 40000),
-        'resp_sn': 1,
+        'subject': 0x01,
+        'args': {'a': 1, 'b': True},
     }
-    conn_ctrl_ack_pkt = UDPPacket()
-    conn_ctrl_ack_pkt.fields = ObjectifiedDict(**conn_ctrl_ack_pkt_fields)
+    clst_ctrl_pkt = TCPPacket()
+    clst_ctrl_pkt.proto = PktProto.TCP
+    clst_ctrl_pkt.type = PktTypes.CLST_CTRL
+    clst_ctrl_pkt.fields = ODict(**clst_ctrl_pkt_fields)
 
     pkts = {
         PktTypes.DATA: data_pkt,
-        PktTypes.CTRL: ctrl_pkt,
         PktTypes.CONN_CTRL: conn_ctrl_pkt,
-        PktTypes.CONN_CTRL_ACK: conn_ctrl_ack_pkt,
+        PktTypes.CLST_CTRL: clst_ctrl_pkt,
     }
 
     # preparation completed, now we do the test
-    for pkt_type, body_fmt in packet_wrapper._body_fmt_mapping.items():
+    for pkt_type, body_fmt in pkts.items():
         original_pkt = pkts.get(pkt_type)
-        udp_data = packet_wrapper.make_udp_pkt(original_pkt, body_fmt)
+        udp_data = packet_wrapper.wrap(original_pkt)
 
-        pkt_to_parse = UDPPacket()
+        pkt_to_parse = TCPPacket()
         pkt_to_parse.data = udp_data
-        parsed_fields, parsed_byte_fields = \
-                packet_wrapper.parse_udp_pkt(pkt_to_parse)
+        parsed_fields, parsed_byte_fields = packet_wrapper.unwrap(pkt_to_parse)
 
         packet_wrapper._validate_pkt(parsed_fields, parsed_byte_fields)
         assert original_pkt.fields.__to_dict__() == parsed_fields.__to_dict__()
