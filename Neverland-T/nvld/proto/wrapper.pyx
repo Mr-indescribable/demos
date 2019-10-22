@@ -14,7 +14,37 @@ from ..exceptions import (
     InvalidPkt,
     DecryptionFailed,
 )
-from .fmt.tcp import TCPHeaderFormat
+from .fmt import SpecialLength
+from .fmt.tcp import TCPHeaderFormat, DELIMITER_FIELD_LEN
+
+
+class _DataSpliter():
+
+    def __init__(self):
+        self.cur = 0
+
+    def split(self, data, length):
+        if length in SpecialLength._values():
+            field, actual_len = self._split_special(data, length)
+        else:
+            field = data[self.cur: self.cur + length]
+            actual_len = length
+
+        self.cur += actual_len
+        return field, actual_len
+
+    def _split_special(self, data, length):
+        if length == SpecialLength.USE_ALL:
+            field = data[self.cur:]
+        elif length == SpecialLength.TCP_EXCEPT_DELIM:
+            remaining = data[self.cur:]
+            remaining_len = len(remaining)
+
+            field = remaining[:remaining_len - DELIMITER_FIELD_LEN]
+        else:
+            raise PktUnwrappingError('Unknown special length type')
+
+        return field, len(field)
 
 
 class PacketWrapper():
@@ -125,7 +155,7 @@ class PacketWrapper():
             return pystruct.pack('!BBBBH', *ip, port)
         if field_type == FieldTypes.STRUCT_IPV6_SA:
             # TODO ipv6 support
-            raise NotImplemented
+            raise NotImplementedError()
         if field_type == FieldTypes.PY_BYTES:
             if isinstance(value, bytes):
                 return value
@@ -182,7 +212,7 @@ class PacketWrapper():
         return HashTools.sha256(data_2_hash).encode() == byte_fields.mac
 
     def _parse_tcp_pkt(self, pkt):
-        cur = 0   # cursor
+        spliter = _DataSpliter()
         fields = ODict()
         byte_fields = ODict()
         data = pkt.data
@@ -192,7 +222,7 @@ class PacketWrapper():
 
         # parse first 3 fields: rsv, len, type
         for field_name, definition in TCPHeaderFormat.__fmt__.items():
-            field_data = data[cur: cur + definition.length]
+            field_data, field_len = spliter.split(data, definition.length)
 
             try:
                 value = self._unpack_field(field_data, definition.type)
@@ -201,7 +231,6 @@ class PacketWrapper():
 
             fields.__update__(**{field_name: value})
             byte_fields.__update__(**{field_name: field_data})
-            cur += definition.length
 
             if field_name == 'type':
                 break
@@ -215,12 +244,7 @@ class PacketWrapper():
             if field_name in ('rsv', 'len', 'type'):
                 continue
 
-            # -1 means this field is the last field of the packet
-            # and it consumes all remaining space of the packet
-            if definition.length == -1:
-                field_data = data[cur:]
-            else:
-                field_data = data[cur: cur + definition.length]
+            field_data, field_len = spliter.split(data, definition.length)
 
             # Packet too short, it must be invalid
             if len(field_data) == 0:
@@ -233,7 +257,6 @@ class PacketWrapper():
 
             fields.__update__(**{field_name: value})
             byte_fields.__update__(**{field_name: field_data})
-            cur += definition.length
 
         body_type = fields.type
         body_fmt = self._find_fmt(pkt.proto, body_type)
@@ -266,7 +289,7 @@ class PacketWrapper():
             return (ip, port)
         if field_type == FieldTypes.STRUCT_IPV6_SA:
             # TODO ipv6 support
-            return None
+            raise NotImplementedError()
         if field_type == FieldTypes.PY_BYTES:
             return data
         if field_type == FieldTypes.PY_DICT:

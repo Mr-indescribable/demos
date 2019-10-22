@@ -1,4 +1,14 @@
 from ...utils.od import ODict
+from ...utils.enumeration import MetaEnum
+
+
+class SpecialLength(metaclass=MetaEnum):
+
+    # Use all bytes remaining
+    USE_ALL  = -1
+
+    # Use all bytes remaining but not including the delimiter
+    TCP_EXCEPT_DELIM = -2
 
 
 class FieldDefinition(ODict):

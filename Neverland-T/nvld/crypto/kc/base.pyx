@@ -155,7 +155,7 @@ class BaseKernelCryptor():
         ''' do encryption or decryption
         '''
 
-        raise NotImplemented
+        raise NotImplementedError()
 
     def change_iv(self, iv):
         self._iv = iv

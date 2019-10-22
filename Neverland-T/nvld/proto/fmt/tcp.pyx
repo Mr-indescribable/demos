@@ -1,6 +1,7 @@
 from ...glb import GLBInfo
 from ...pkt.general import FieldTypes, PktTypes
 from ..fmt import (
+    SpecialLength,
     FieldDefinition,
     BasePktFormat,
 )
@@ -14,8 +15,11 @@ from ..fc import (
 )
 
 
-RESERVED_FIELD_VALUE  = b'\x00' * 4
-DELIMITER_FIELD_VALUE = b'\xff' * 32
+RESERVED_FIELD_LEN  = 4
+DELIMITER_FIELD_LEN = 32
+
+RESERVED_FIELD_VALUE  = b'\x00' * RESERVED_FIELD_LEN
+DELIMITER_FIELD_VALUE = b'\xff' * DELIMITER_FIELD_LEN
 
 
 class TCPHeaderFormat(BasePktFormat):
@@ -115,7 +119,7 @@ class TCPDataPktFormat(BasePktFormat):
         cls.__fmt__ = {
             # just the data
             'data': FieldDefinition(
-                        length = -1,
+                        length = SpecialLength.TCP_EXCEPT_DELIM,
                         type   = FieldTypes.PY_BYTES,
                     ),
         }
@@ -140,9 +144,10 @@ class TCPConnCtrlPktFormat(BasePktFormat):
                     ),
             # An IPv6 socket address
             # this fields should be set to all zero if IPv4 is in use
+            # This field is not in use now.
             'v6ip': FieldDefinition(
                         length  = 18,
-                        type    = FieldTypes.STRUCT_IPV6_SA,
+                        type    = FieldTypes.PY_BYTES,
                         default = b'\x00' * 18,
                     ),
             # A boolean in int type that indicates whether we are using IPv4
@@ -175,7 +180,7 @@ class TCPClstCtrlPktFormat(BasePktFormat):
             # contains arguments for the selected subject.
             # The format of content field is stringified JSON.
             'args': FieldDefinition(
-                           length = -1,
-                           type   = FieldTypes.PY_DICT,
-                       ),
+                        length = SpecialLength.TCP_EXCEPT_DELIM,
+                        type   = FieldTypes.PY_DICT,
+                    ),
         }
