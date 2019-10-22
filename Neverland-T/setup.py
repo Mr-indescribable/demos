@@ -9,7 +9,7 @@ extensions = [
     Extension(
         'nvld/**',
         ['nvld/**/*.pyx'],
-        libraries=["crypto"],
+        libraries=['crypto'],
     ),
 ]
 

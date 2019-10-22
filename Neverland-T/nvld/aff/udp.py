@@ -2,7 +2,7 @@ import socket
 import struct
 import logging
 
-from nvld.pkt import UDPPacket
+from ..pkt import UDPPacket
 
 
 logger = logging.getLogger('Main')
@@ -13,17 +13,12 @@ UDP_BUFFER_SIZE = 65507
 
 class UDPAff():
 
-    ''' A normal implementation of the afferents
-    '''
-
-    def __init__(self, config, listen_addr=None, listen_port=None):
-        self.config = config
-
-        self.listen_addr = listen_addr or self.config.net.aff_listen_addr
-        self.listen_port = listen_port or self.config.net.aff_listen_port
+    def __init__(self, listen_addr, listen_port):
+        self.listen_addr = listen_addr
+        self.listen_port = listen_port
 
         self._sock = self.create_socket()
-        self._fd = self._sock.fileno()
+        self.fd = self._sock.fileno()
 
     def create_socket(self):
         af, type_, proto, canon, sa = socket.getaddrinfo(
@@ -34,13 +29,13 @@ class UDPAff():
         sock = socket.socket(af, type_, proto)
 
         self.setsockopt(sock)
-        sock.setblocking(False)
         return sock
 
     def setsockopt(self, sock):
+        sock.setblocking(False)
+
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        return sock
 
     def listen(self):
         self._sock.bind(
@@ -53,15 +48,10 @@ class UDPAff():
 
     def recv(self):
         data, src = self._sock.recvfrom(UDP_BUFFER_SIZE)
-        pkt = UDPPacket(
-                  data=data,
-                  previous_hop=src,
-              )
-        return pkt
-
-    @property
-    def fd(self):
-        return self._fd
+        return UDPPacket(
+            data=data,
+            previous_hop=src,
+        )
 
 
 class ClientUDPAff(UDPAff):
@@ -95,9 +85,8 @@ class ClientUDPAff(UDPAff):
             [str(u) for u in cmsg[2:]]
         )
 
-        pkt = UDPPacket(
-                  data=data,
-                  src={'addr': src[0], 'port': src[1]},
-                  dest={'addr': dest_addr, 'port': dest_port},
-              )
-        return pkt
+        return UDPPacket(
+                   data=data,
+                   src={'addr': src[0], 'port': src[1]},
+                   dest={'addr': dest_addr, 'port': dest_port},
+               )

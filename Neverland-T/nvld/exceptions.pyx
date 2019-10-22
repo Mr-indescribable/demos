@@ -14,6 +14,14 @@ class PidFileNotExists(FileNotFoundError):
     pass
 
 
+class ConnectionLost(Exception):
+    pass
+
+
+class NotEnoughData(Exception):
+    pass
+
+
 class PktWrappingError(Exception):
     pass
 
