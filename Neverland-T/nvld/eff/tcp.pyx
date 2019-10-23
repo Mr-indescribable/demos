@@ -66,7 +66,7 @@ class TCPEff():
         return bt_sent
 
     def need_to_send(self):
-        return len(self._send_buf) > 0:
+        return len(self._send_buf) > 0
 
     def update_cryptor(self, cryptor):
         if self.plain_mod:

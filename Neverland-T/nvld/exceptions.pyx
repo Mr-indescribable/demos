@@ -56,6 +56,7 @@ class SHMError(Exception):
 # This kind of exceptions are not true exceptions, they are used to break
 # the logic chain and send back a special information to the upper-layer
 class Info(Exception):
+    pass
 
 
 # has the same meaning as errno EAGAIN

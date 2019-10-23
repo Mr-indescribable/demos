@@ -311,7 +311,7 @@ def test_make_n_parse_tcp_pkt():
         pkt_to_parse.data = wrapped_pkt.data
         unwrapped_pkt = packet_wrapper.unwrap(pkt_to_parse)
 
-        valid = packet_wrapper._validate_mac(unwrapped_pkt.byte_fields, fmt)
+        valid = packet_wrapper._validate(unwrapped_pkt.byte_fields, fmt)
 
         assert original_pkt.fields.__to_dict__() == \
                unwrapped_pkt.fields.__to_dict__()

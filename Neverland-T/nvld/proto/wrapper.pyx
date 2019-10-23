@@ -15,7 +15,12 @@ from ..exceptions import (
     DecryptionFailed,
 )
 from .fmt import SpecialLength
-from .fmt.tcp import TCPHeaderFormat, DELIMITER_FIELD_LEN
+from .fmt.tcp import (
+    TCPHeaderFormat,
+    DELIMITER_FIELD_LEN,
+    RESERVED_FIELD_VALUE,
+    DELIMITER_FIELD_VALUE,
+)
 
 
 class _DataSpliter():
@@ -181,7 +186,7 @@ class PacketWrapper():
         if pkt.proto == PktProto.TCP:
             fields, byte_fields, fmt = self._parse_tcp_pkt(pkt)
 
-            if self._validate_mac(byte_fields, fmt):
+            if self._validate(byte_fields, fmt):
                 pkt.fields = fields
                 pkt.byte_fields = byte_fields
 
@@ -200,16 +205,26 @@ class PacketWrapper():
 
         return pkt
 
-    def _validate_mac(self, byte_fields, fmt):
-        data_2_hash = b''
+    # validates the packet and returns a boolean which
+    # indicates whether the packet is valid
+    def _validate(self, byte_fields, fmt):
+        if byte_fields.rsv != RESERVED_FIELD_VALUE:
+            return False
 
+        if byte_fields.delimiter != DELIMITER_FIELD_VALUE:
+            return False
+
+        data_2_hash = b''
         for field_name, definition in fmt.__fmt__.items():
             if field_name == 'mac':
                 continue
 
             data_2_hash += getattr(byte_fields, field_name)
 
-        return HashTools.sha256(data_2_hash).encode() == byte_fields.mac
+        if HashTools.sha256(data_2_hash).encode() != byte_fields.mac:
+            return False
+
+        return True
 
     def _parse_tcp_pkt(self, pkt):
         spliter = _DataSpliter()

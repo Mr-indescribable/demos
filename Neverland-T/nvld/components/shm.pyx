@@ -1,11 +1,15 @@
 import select
 import socket
+import logging
 
 from ..glb import GLBInfo
 from ..exceptions import AddressAlreadyInUse, EAgain
 from ..fdx.tcp import FDXTCPConn
 from ..aff.tcp import TCPServerAff
 from ..ev.epoll import EpollPoller
+
+
+logger = logging.getLogger('SHM')
 
 
 class SHMServerAff(TCPServerAff):
@@ -28,10 +32,10 @@ class SHMServerAff(TCPServerAff):
         except OSError as e:
             if e.errno == 98:
                 raise AddressAlreadyInUse(
-                    f'{socket_path} is already in use, cannot bind on it'
+                    f'{sock_path} is already in use, cannot bind on it'
                 )
             else:
-                raise err
+                raise e
 
         return sock
 
@@ -52,7 +56,7 @@ class SHMServer():
     def run(self):
         evs = self._poller.poll()
 
-        for fd, ev in evts:
+        for fd, ev in evs:
             self._handle_ev(fd, ev)
 
     def _handle_ev(self, fd, ev):

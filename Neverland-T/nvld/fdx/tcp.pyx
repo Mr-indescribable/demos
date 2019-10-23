@@ -21,7 +21,7 @@ class FDXTCPConn():
     def recv(self):
         return self._aff.recv()
 
-    def send(data):
+    def send(self, data):
         return self._eff.send(data)
 
     def pop_data(self, length):

@@ -46,11 +46,7 @@ class TCPHeaderFormat(BasePktFormat):
                        calc_priority = 0xfe,
                    ),
 
-            # Packet type,
-            # 0x01 for data packets,
-            # 0x02 for controlling packets,
-            # 0x03 for connection controlling packets
-            # 0x04 for connection controlling ACK
+            # Packet type
             'type': FieldDefinition(
                         length = 1,
                         type   = FieldTypes.STRUCT_U_CHAR,
