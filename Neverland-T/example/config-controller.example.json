@@ -32,8 +32,7 @@
 	},
 
 	"shm": {
-		"socket_dir": "/tmp/nl-ctrl/shm",
-		"manager_socket_name": "SHM-Manager.socket"
+		"socket": "/tmp/nl-shm.socket"
 	},
 
 	"log": {

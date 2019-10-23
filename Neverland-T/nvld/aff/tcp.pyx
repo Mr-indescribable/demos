@@ -4,7 +4,7 @@ import struct
 import logging
 
 from ..utils.misc import errno_from_exception
-from ..exceptions import ConnectionLost, NotEnoughData
+from ..exceptions import ConnectionLost, NotEnoughData, EAgain
 from ..pkt import TCPPacket
 
 
@@ -19,7 +19,8 @@ SO_ORIGINAL_DST = 80
 
 
 # A normal TCP afferent is a wrapper of an accepted TCP connection
-# which connects two Neverland nodes
+# which connects to a remote node.
+# TCPAff objects are always in half-duplex mode.
 class TCPAff():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None):
@@ -51,12 +52,16 @@ class TCPAff():
         self._sock.close()
         self._sock = None
 
+    # receives data from the socket and put it into the buffer
+    # returns the length of the received data block
     def recv(self):
         try:
             data = self._sock.recv(TCP_BUFFER_SIZE)
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return
+            else:
+                raise e
 
         if len(data) == 0:
             raise ConnectionLost()
@@ -65,6 +70,8 @@ class TCPAff():
             self._raw_buf += data
         else:
             self._pln_buf += self._cryptor.decrypt(data)
+
+        return len(data)
 
     def update_cryptor(self, cryptor):
         if self.plain_mod:
@@ -131,9 +138,9 @@ class TCPServerAff():
 
     def accept(self):
         try:
-            conn, src = self._sock.accept()
+            return self._sock.accept()
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
-                return
-
-        return TCPAff(conn, src)
+                raise EAgain()
+            else:
+                raise e

@@ -42,32 +42,22 @@ class AddressAlreadyInUse(Exception):
     pass
 
 
+# Current packet shall be dropped
 class DropPacket(Exception):
-
-    ''' Current packet shall be dropped
-    '''
-
-
-class SharedMemoryError(Exception):
     pass
 
 
+class SHMError(Exception):
+    pass
+
+
+# special informations
+
+# This kind of exceptions are not true exceptions, they are used to break
+# the logic chain and send back a special information to the upper-layer
 class Info(Exception):
 
-    ''' special informations
-    
-    This kind of exceptions are not true exceptions, they are used to break
-    the logic chain and send back a special information to the upper-layer
-    '''
 
-
-class SuccessfullyJoinedCluster(Info):
-    pass
-
-
-class FailedToJoinCluster(Info):
-    pass
-
-
-class FailedToDetachFromCluster(Info):
+# has the same meaning as errno EAGAIN
+class EAgain(Info):
     pass

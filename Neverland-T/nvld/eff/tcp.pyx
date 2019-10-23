@@ -14,12 +14,13 @@ TCP_BLOCK_SIZE = 32768
 
 
 # A TCP efferent is a wrapper of a TCP connection
-# which connects to a remote node
+# which connects to a remote node.
+#
+# TCPEff objects are always in half-duplex mode.
 class TCPEff():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None):
         self._send_buf = b''
-        self.has_data = False
 
         self._sock = conn
         self.src = src
@@ -33,6 +34,8 @@ class TCPEff():
         self._sock.close()
         self._sock = None
 
+    # writes data into the socket and returns number of bytes that
+    # has been written into the socket.
     def send(self, data):
         if self.plain_mod:
             pending = data
@@ -54,16 +57,16 @@ class TCPEff():
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return -1
+            else:
+                raise e
 
         # The cursor moves forward by bt_sent bytes
         self._send_buf = self._send_buf[bt_sent:]
 
-        if len(self._send_buf) > 0:
-            self.has_data = True
-        else:
-            self.has_data = False
-
         return bt_sent
+
+    def need_to_send(self):
+        return len(self._send_buf) > 0:
 
     def update_cryptor(self, cryptor):
         if self.plain_mod:
