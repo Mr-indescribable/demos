@@ -22,7 +22,7 @@ SO_ORIGINAL_DST = 80
 # which connects two Neverland nodes
 class TCPAff():
 
-    def __init__(self, conn, src, plain_mod=False, cryptor=None):
+    def __init__(self, conn, src, plain_mod=True, cryptor=None):
         # a buffer that stores raw data (unprocessed after receiving)
         self._raw_buf = b''
 
@@ -36,7 +36,7 @@ class TCPAff():
 
         self._sock = conn
         self.src = src
-        self.plain_mod = False
+        self.plain_mod = plain_mod
 
         # An optional crypto.Cryptor object,
         # it will be used in encryption or decryption if provided.
