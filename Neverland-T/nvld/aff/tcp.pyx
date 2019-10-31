@@ -4,7 +4,7 @@ import struct
 import logging
 
 from ..utils.misc import errno_from_exception
-from ..exceptions import ConnectionLost, NotEnoughData, EAgain
+from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
 from ..pkt import TCPPacket
 
 
@@ -24,6 +24,11 @@ SO_ORIGINAL_DST = 80
 class TCPAff():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None):
+        # A register that stores an integer (or None) which means the size of
+        # the next block incoming. This is shortcut for easily avoiding
+        # parsing the length field for multiple times.
+        self._next_blksize = None
+
         # a buffer that stores raw data (unprocessed after receiving)
         self._raw_buf = b''
 
@@ -88,6 +93,13 @@ class TCPAff():
         else:
             return len(self._pln_buf)
 
+    @property
+    def next_blksize(self):
+        return self._next_blksize
+
+    def set_next_blksize(self, blksize):
+        self._next_blksize = blksize
+
     def pop_data(self, length):
         if length > self.buf_len():
             raise NotEnoughData()
@@ -142,6 +154,6 @@ class TCPServerAff():
             return self._sock.accept()
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
-                raise EAgain()
+                raise TryAgain()
             else:
                 raise e

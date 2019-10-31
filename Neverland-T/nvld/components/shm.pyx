@@ -3,10 +3,11 @@ import socket
 import logging
 
 from ..glb import GLBInfo
-from ..exceptions import AddressAlreadyInUse, EAgain
+from ..exceptions import AddressAlreadyInUse, TryAgain
 from ..fdx.tcp import FDXTCPConn
 from ..aff.tcp import TCPServerAff
 from ..ev.epoll import EpollPoller
+from ..helper.tcp import NonblockingTCPIOHelper
 
 
 logger = logging.getLogger('SHM')
@@ -53,6 +54,8 @@ class SHMServer():
             self._poller.EV_IN,
         )
 
+        self._io_helper = NonblockingTCPIOHelper(self._poller)
+
     def run(self):
         evs = self._poller.poll()
 
@@ -66,9 +69,14 @@ class SHMServer():
     def _accept(self):
         try:
             conn, src = self.SHMServerAff.accept()
-        except EAgain:
+        except TryAgain:
             return
 
         conn = FDXTCPConn(conn, src)
         self._poller.register(conn.fd, self._poller.DEFAULT_EV, conn)
-        # TODO to be continued...
+
+    def _pack(self):
+        pass
+
+    def _parse(self):
+        pass

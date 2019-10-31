@@ -42,6 +42,13 @@ class FDXTCPConn():
     def send_buf_len(self):
         return self._eff.send_buf_len
 
+    @property
+    def next_blksize(self):
+        return self._aff.next_blksize
+
+    def set_next_blksize(self, blksize):
+        self._aff.set_next_blksize(blksize)
+
     def destroy(self):
         self._conn.close()
         self._sock = None
