@@ -6,6 +6,9 @@ from ..eff.tcp import TCPEff
 #
 # TCP supports full-duplex natively, but for the sake of our code, we need to
 # split it into two parts that work in half-duplex and reintegrate them.
+#
+# And the FDXTCPConn class provides all APIs that the aff and the eff has,
+# thus, we can use it as if either it's an aff or an eff.
 class FDXTCPConn():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None):
@@ -27,15 +30,17 @@ class FDXTCPConn():
     def pop_data(self, length):
         return self._aff.pop_data(length)
 
-    def recv_buf_len(self):
-        return self._aff.buf_len()
-
     def update_cryptor(self, cryptor):
         self._aff.update_cryptor(cryptor)
         self._eff.update_cryptor(cryptor)
 
-    def need_to_send(self):
-        return self._eff.need_to_send()
+    @property
+    def recv_buf_len(self):
+        return self._aff.recv_buf_len
+
+    @property
+    def send_buf_len(self):
+        return self._eff.send_buf_len
 
     def destroy(self):
         self._conn.close()

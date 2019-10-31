@@ -25,8 +25,8 @@ class EpollPoller():
             raise RuntimeError(f'fd {fd} has already been registered')
 
         self._epoll.register(fd, ev or self.DEFAULT_EV)
-        self._fd_map.update(fd, obj)
-        self._fd_ev_map.update(fd, ev)
+        self._fd_map.update( {fd: obj} )
+        self._fd_ev_map.update( {fd: ev} )
 
     def unregister(self, fd):
         if fd not in self._fd_map:
@@ -40,8 +40,11 @@ class EpollPoller():
         if fd not in self._fd_map:
             raise RuntimeError(f'fd {fd} is not registered')
 
+        if self._fd_ev_map.get(fd) == ev:
+            return
+
         self._epoll.modify(fd, ev)
-        self._fd_ev_map.update(fd, ev)
+        self._fd_ev_map.update( {fd: ev} )
 
     def has(self, fd):
         return fd in self._fd_map

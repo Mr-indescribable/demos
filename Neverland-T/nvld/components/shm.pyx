@@ -70,5 +70,5 @@ class SHMServer():
             return
 
         conn = FDXTCPConn(conn, src)
-        self._poller.register(conn.fd, None, conn)
+        self._poller.register(conn.fd, self._poller.DEFAULT_EV, conn)
         # TODO to be continued...

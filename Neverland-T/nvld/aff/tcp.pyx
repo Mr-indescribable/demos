@@ -81,7 +81,8 @@ class TCPAff():
 
         self._cryptor = cryptor
 
-    def buf_len(self):
+    @property
+    def recv_buf_len(self):
         if self.plain_mod:
             return len(self._raw_buf)
         else:

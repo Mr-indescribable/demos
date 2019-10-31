@@ -36,14 +36,17 @@ class TCPEff():
 
     # writes data into the socket and returns number of bytes that
     # has been written into the socket.
-    def send(self, data):
+    def send(self, data=b''):
         if self.plain_mod:
             pending = data
         else:
-            pending = self._cryptor.encrypt(data)
+            pending = self._cryptor.encrypt(data) if len(data) > 0 else b''
 
         self._send_buf += pending
         buf_len = len(self._send_buf)
+
+        if buf_len == 0:
+            return 0
 
         if buf_len > TCP_BLOCK_SIZE:
             d2s = self._send_buf[:TCP_BLOCK_SIZE]
@@ -56,7 +59,7 @@ class TCPEff():
             bt_sent = self._sock.send(d2s)
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
-                return -1
+                return 0
             else:
                 raise e
 
@@ -65,8 +68,9 @@ class TCPEff():
 
         return bt_sent
 
-    def need_to_send(self):
-        return len(self._send_buf) > 0
+    @property
+    def send_buf_len(self):
+        return len(self._send_buf)
 
     def update_cryptor(self, cryptor):
         if self.plain_mod:
