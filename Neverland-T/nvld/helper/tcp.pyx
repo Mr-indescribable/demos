@@ -10,14 +10,20 @@ class NonblockingTCPIOHelper():
 
     # receives data from an afferent and keep it in afferent's buffer
     #
-    # If the next_blksize has been set in the afferent, then this method
-    # will try to retrieval the block which conforms the next_blksize
+    # If the next_blk_size has been set in the afferent, then this method
+    # will try to retrieval the block which conforms the next_blk_size
     def handle_recv(self, aff):
         # The helper doesn't handle ConnectionLost
         aff.recv()
 
-        if aff.recv_buf_len > 0 and aff.next_blksize is not None:
-            return aff.pop_data(aff.next_blksize)
+        return self.pop_packet(aff)
+
+    def pop_packet(self, aff):
+        if (
+            aff.next_blk_size is not None and
+            aff.recv_buf_len > aff.next_blk_size
+        ):
+            return aff.pop_data(aff.next_blk_size)
         else:
             raise TryAgain()
 
@@ -33,3 +39,7 @@ class NonblockingTCPIOHelper():
             self._poller.modify(eff.fd, self._ev_rw)
 
         return bt_sent
+
+    def append_data(self, eff, data):
+        eff.append_data(data)
+        self._poller.modify(eff.fd, self._ev_rw)

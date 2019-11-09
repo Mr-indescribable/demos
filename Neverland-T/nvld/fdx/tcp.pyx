@@ -27,6 +27,9 @@ class FDXTCPConn():
     def send(self, data):
         return self._eff.send(data)
 
+    def append_data(self, data):
+        return self._eff.append_data(data)
+
     def pop_data(self, length):
         return self._aff.pop_data(length)
 
@@ -43,11 +46,11 @@ class FDXTCPConn():
         return self._eff.send_buf_len
 
     @property
-    def next_blksize(self):
-        return self._aff.next_blksize
+    def next_blk_size(self):
+        return self._aff.next_blk_size
 
-    def set_next_blksize(self, blksize):
-        self._aff.set_next_blksize(blksize)
+    def set_next_blk_size(self, blk_size):
+        self._aff.set_next_blk_size(blk_size)
 
     def destroy(self):
         self._conn.close()

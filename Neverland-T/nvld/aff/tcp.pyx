@@ -27,7 +27,7 @@ class TCPAff():
         # A register that stores an integer (or None) which means the size of
         # the next block incoming. This is shortcut for easily avoiding
         # parsing the length field for multiple times.
-        self._next_blksize = None
+        self._next_blk_size = None
 
         # a buffer that stores raw data (unprocessed after receiving)
         self._raw_buf = b''
@@ -42,7 +42,7 @@ class TCPAff():
 
         self._sock = conn
         self.src = src
-        self.plain_mod = plain_mod
+        self._plain_mod = plain_mod
 
         # An optional crypto.Cryptor object,
         # it will be used in encryption or decryption if provided.
@@ -64,14 +64,14 @@ class TCPAff():
             data = self._sock.recv(TCP_BUFFER_SIZE)
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
-                return
+                raise TryAgain()
             else:
                 raise e
 
         if len(data) == 0:
             raise ConnectionLost()
 
-        if self.plain_mod:
+        if self._plain_mod:
             self._raw_buf += data
         else:
             self._pln_buf += self._cryptor.decrypt(data)
@@ -79,7 +79,7 @@ class TCPAff():
         return len(data)
 
     def update_cryptor(self, cryptor):
-        if self.plain_mod:
+        if self._plain_mod:
             raise RuntimeError(
                 "TCPAff cannot be changed from plain mode to encrypting mode"
             )
@@ -88,23 +88,23 @@ class TCPAff():
 
     @property
     def recv_buf_len(self):
-        if self.plain_mod:
+        if self._plain_mod:
             return len(self._raw_buf)
         else:
             return len(self._pln_buf)
 
     @property
-    def next_blksize(self):
-        return self._next_blksize
+    def next_blk_size(self):
+        return self._next_blk_size
 
-    def set_next_blksize(self, blksize):
-        self._next_blksize = blksize
+    def set_next_blk_size(self, blk_size):
+        self._next_blk_size = blk_size
 
     def pop_data(self, length):
-        if length > self.buf_len():
+        if length > self.recv_buf_len:
             raise NotEnoughData()
 
-        if self.plain_mod:
+        if self._plain_mod:
             data = self._raw_buf[:length]
             self._raw_buf = self._raw_buf[length:]
         else:
@@ -118,12 +118,19 @@ class TCPAff():
 # which accepts connections and creates normal afferents
 class TCPServerAff():
 
-    def __init__(self, listen_addr, listen_port):
+    # The constructor
+    #
+    # :param plain_mod: used in construction of TCPAff objects
+    # :param cryptor:   used in construction of TCPAff objects
+    def __init__(self, listen_addr, listen_port, plain_mod=True, cryptor=None):
         self.listen_addr = listen_addr
         self.listen_port = listen_port
 
         self._sock = self.create_socket()
         self.fd = self._sock.fileno()
+
+        self._plain_mod = plain_mod
+        self._cryptor = cryptor
 
     def create_socket(self):
         af, type_, proto, canon, sa = socket.getaddrinfo(
@@ -150,6 +157,17 @@ class TCPServerAff():
         self._sock = None
 
     def accept(self):
+        try:
+            conn, src = self._sock.accept()
+        except OSError as e:
+            if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
+                raise TryAgain()
+            else:
+                raise e
+
+        return TCPAff(conn, src, self._plain_mod, self._cryptor)
+
+    def accept_raw(self):
         try:
             return self._sock.accept()
         except OSError as e:

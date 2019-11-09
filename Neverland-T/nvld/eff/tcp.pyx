@@ -68,6 +68,9 @@ class TCPEff():
 
         return bt_sent
 
+    def append_data(self, data):
+        self._send_buf += data
+
     @property
     def send_buf_len(self):
         return len(self._send_buf)
