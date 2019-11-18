@@ -68,6 +68,105 @@ class SHMServerAff(TCPServerAff):
 #         always match the length field.
 #
 #         The content of payload field is a serialized JSON string.
+#
+#     Inner JSON format:
+#         We shall have the following fields in the JSON payload in general:
+#
+#             Action:
+#                 An integer that describes what does the current packet do.
+#
+#                 Currently, we have 5 actions:
+#
+#                     Init:
+#                         Means to initialize a key in the memory pool.
+#
+#                         When using the Init action, the Data will be ignored,
+#                         the server will create a new key in the memory pool
+#                         and give it a default value.
+#
+#                         The default value is depends on the Type, integers
+#                         will be initialized as 0, strings will be initialized
+#                         as empty strings (""), arrays will be initialized as
+#                         empty arrays ([]), objects will be initialized as
+#                         empty JSON objects ({}).
+#
+#                     Set:
+#                         Means to set a value on an Non-Container type key.
+#                         The server will override the original value, and
+#                         will initialize the key of it not initialized.
+#
+#                     Put:
+#                         Means to put new elements into a container.
+#
+#                         With an Array type container, the data should be
+#                         a JSON Array as well, each elements in the data
+#                         will be appended on the tail of the container.
+#
+#                         With an Object type container, the data should
+#                         be a JSON object as well, each elements int the
+#                         data will be written into the container, if any
+#                         elements in the data conflicts with elements in
+#                         the container, then the new data will override
+#                         the old one. This behaviour should be same as
+#                         dict.update() in Python3.
+#
+#                     Remove:
+#                         Means to remove an element in a container.
+#
+#                         In this case, the Data field should be a JSON Array
+#                         that contains elements to remove.
+#
+#                         For Array type containers, elements in the Data field
+#                         should be exactly same with the ones in the container.
+#
+#                         For Object type containers, elements in the Data
+#                         field should be inner keys of the container.
+#
+#                     Delete:
+#                         Means to delete a key from the memory pool.
+#
+#                         In this case, the Data field should be a string
+#                         which contains the key to be deleted.
+#
+#             Type:
+#                 An integer that marks the type of the interchanging data.
+#
+#                 Currently, we have only three types in tow kinds:
+#
+#                     Container Type Array:
+#                         Means the Data is in the JSON Array format.
+#
+#                    Container Type Object:
+#                         Means the Data is in the JSON Object format.
+#
+#                     Non-Container Type:
+#                         Means the Data may be a number, a string or a boolean,
+#                         it may in any format that cannot contain sub-elements.
+#
+#             Key:
+#                 A string key name that constitutes the key-value pair
+#                 with the Data field.
+#
+#             Data:
+#                 A JSON object that contains any kinds of data which
+#                 constitutes the the key-value pair with the Key field.
+#
+#                 Inner Structure:
+#                     Depends on the scenario, any structure supported
+#                     by JSON may be used here.
+#
+#             RT:
+#                 A JSON object that contains additional information which
+#                 may help the data interchange and the reporting of status.
+#
+#                 This field should be only written by the server side, and
+#                 be read by the client side.
+#
+#                 Inner Structure:
+#                     {
+#                         "rcode": integer,
+#                         "rmsg": string,
+#                     }
 class SHMServer():
 
     def __init__(self):
@@ -170,7 +269,7 @@ class SHMServer():
             pkt = json.loads(pkt_bt.decode())
             pkt = ODict(**pkt)
         except Exception:
-            # We don't care what excetpion occurred, if the we cannot parse
+            # We don't care what excetpion occurred, if we cannot parse
             # the data, then just disconnect it.
             self._handle_destroy(conn.fd)
 
@@ -180,3 +279,4 @@ class SHMServer():
             )
             return
 
+        
