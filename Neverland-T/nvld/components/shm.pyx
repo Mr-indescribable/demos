@@ -6,6 +6,7 @@ import logging
 
 from ..glb import GLBInfo
 from ..util.od import ODict
+from ..util.misc import VerifiTools
 from ..exceptions import AddressAlreadyInUse, TryAgain, ConnectionLost
 from ..fdx.tcp import FDXTCPConn
 from ..aff.tcp import TCPServerAff
@@ -14,6 +15,28 @@ from ..helper.tcp import NonblockingTCPIOHelper
 
 
 logger = logging.getLogger('SHM')
+
+
+SHM_ACT_REP  = 0x10
+SHM_ACT_INIT = 0x11
+SHM_ACT_RA   = 0x12
+SHM_ACT_GET  = 0x13
+SHM_ACT_SET  = 0x14
+SHM_ACT_PUT  = 0x15
+SHM_ACT_RM   = 0X16
+SHM_ACT_DLT  = 0x17
+
+SHM_TYPE_NC  = 0x20
+SHM_TYPE_ARY = 0x21
+SHM_TYPE_OBJ = 0x22
+
+SHM_RCODE_OK              = 0x50
+SHM_RCODE_NO_SUCH_ACTION  = 0x51
+SHM_RCODE_NO_SUCH_KEY     = 0x52
+SHM_RCODE_KEY_CONFLICTION = 0x53
+SHM_RCODE_TYPE_ERROR      = 0x54
+SHM_RCODE_INDEX_ERROR     = 0x55
+SHM_RCODE_INNER_KEY_ERROR = 0x56
 
 
 class SHMServerAff(TCPServerAff):
@@ -44,6 +67,37 @@ class SHMServerAff(TCPServerAff):
         return sock
 
 
+# A descriptor for helping the SHMServer in processing requests.
+# It prechecks the incoming key in the request and replies with error
+# if the key does not exist.
+def __existence_confirmed(func):
+
+    def wrapper(self, pkt, conn):
+        if not VerifiTools.type_matched(pkt.key, str):
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'unsupported type of key'
+                )
+            )
+            return
+
+        if pkt.key not in self._mem_pool:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_NO_SUCH_KEY,
+                    f'not such key: {pkt.key}'
+                )
+            )
+            return
+
+        return func(self, pkt, conn)
+
+    return wrapper
+
+
 # The Shared Memory Server
 #
 # The shared memory server is a simple TCP server that works with Unix sockets.
@@ -72,10 +126,14 @@ class SHMServerAff(TCPServerAff):
 #     Inner JSON format:
 #         We shall have the following fields in the JSON payload in general:
 #
-#             Action:
+#             action:
 #                 An integer that describes what does the current packet do.
 #
-#                 Currently, we have 5 actions:
+#                 Currently, we have 8 actions:
+#
+#                     Reply:
+#                         Means this is a reply from the server side which
+#                         responding the request from client side.
 #
 #                     Init:
 #                         Means to initialize a key in the memory pool.
@@ -84,11 +142,23 @@ class SHMServerAff(TCPServerAff):
 #                         the server will create a new key in the memory pool
 #                         and give it a default value.
 #
-#                         The default value is depends on the Type, integers
-#                         will be initialized as 0, strings will be initialized
-#                         as empty strings (""), arrays will be initialized as
-#                         empty arrays ([]), objects will be initialized as
-#                         empty JSON objects ({}).
+#                         The default value is depends on the Type,
+#                         non-container types will be initialized as a null,
+#                         arrays will be initialized as empty arrays ([]),
+#                         objects will be initialized as empty JSON objects ({})
+#
+#                     ReadAll:
+#                         Means to read all content on a key in any type.
+#
+#                     Get:
+#                         Means to get a single element from a container.
+#
+#                         With an Array type container, the Data field should
+#                         be an integer which means the index of the element
+#                         in the container.
+#
+#                         With an Object type container, the Data field should
+#                         be a string which means the inner key of the container
 #
 #                     Set:
 #                         Means to set a value on an Non-Container type key.
@@ -98,11 +168,11 @@ class SHMServerAff(TCPServerAff):
 #                     Put:
 #                         Means to put new elements into a container.
 #
-#                         With an Array type container, the data should be
-#                         a JSON Array as well, each elements in the data
+#                         With an Array type container, the Data field should
+#                         be a JSON Array as well, each elements in the data
 #                         will be appended on the tail of the container.
 #
-#                         With an Object type container, the data should
+#                         With an Object type container, the Data field should
 #                         be a JSON object as well, each elements int the
 #                         data will be written into the container, if any
 #                         elements in the data conflicts with elements in
@@ -113,14 +183,14 @@ class SHMServerAff(TCPServerAff):
 #                     Remove:
 #                         Means to remove an element in a container.
 #
-#                         In this case, the Data field should be a JSON Array
-#                         that contains elements to remove.
+#                         In this case, the Data field should be a single
+#                         element to remove.
 #
-#                         For Array type containers, elements in the Data field
-#                         should be exactly same with the ones in the container.
+#                         For Array type containers, the Data field
+#                         should be a index in the container.
 #
-#                         For Object type containers, elements in the Data
-#                         field should be inner keys of the container.
+#                         For Object type containers, the Data field
+#                         should be an inner key of the container.
 #
 #                     Delete:
 #                         Means to delete a key from the memory pool.
@@ -128,7 +198,7 @@ class SHMServerAff(TCPServerAff):
 #                         In this case, the Data field should be a string
 #                         which contains the key to be deleted.
 #
-#             Type:
+#             type:
 #                 An integer that marks the type of the interchanging data.
 #
 #                 Currently, we have only three types in tow kinds:
@@ -143,11 +213,11 @@ class SHMServerAff(TCPServerAff):
 #                         Means the Data may be a number, a string or a boolean,
 #                         it may in any format that cannot contain sub-elements.
 #
-#             Key:
+#             key:
 #                 A string key name that constitutes the key-value pair
 #                 with the Data field.
 #
-#             Data:
+#             data:
 #                 A JSON object that contains any kinds of data which
 #                 constitutes the the key-value pair with the Key field.
 #
@@ -155,7 +225,7 @@ class SHMServerAff(TCPServerAff):
 #                     Depends on the scenario, any structure supported
 #                     by JSON may be used here.
 #
-#             RT:
+#             rt:
 #                 A JSON object that contains additional information which
 #                 may help the data interchange and the reporting of status.
 #
@@ -182,11 +252,46 @@ class SHMServer():
 
         self._io_helper = NonblockingTCPIOHelper(self._poller)
 
+        self._mem_pool = dict()
+
     def run(self):
         evs = self._poller.poll()
 
         for fd, ev in evs:
             self._handle_ev(fd, ev)
+
+    def _gen_resp(
+        self,
+        data=None,
+        rcode=SHM_RCODE_OK,
+        rmsg=None,
+        key=None,
+        type_=None,
+        action=SHM_ACT_REP,
+    ):
+        r_json = {
+            'action': action,
+            'key': key,
+            'type': type_,
+            'data': data,
+            'rt': {
+                'rcode': rcode,
+                'rmsg': rmsg,
+            }
+        }
+        r_bytes = json.dumps(r_json).encode()
+        len_byte = len(r_bytes)
+
+        return pystruct.pack('<I', len_byte) + r_bytes
+
+    def _gen_ok_resp(self, data=None, rmsg=None):
+        return self._gen_resp(data=data, rcode=SHM_RCODE_OK, rmsg=rmsg)
+
+    def _gen_err_resp(self, rcode, rmsg):
+        return self._gen_resp(data=None, rcode=rcode, rmsg=rmsg)
+
+    def _replay(self, conn, data):
+        self._io_helper.append_data(conn, data)
 
     def _handle_ev(self, fd, ev):
         if fd == self._server_fd and ev & self._poller.EV_IN:
@@ -199,7 +304,7 @@ class SHMServer():
         elif ev & self._poller.EV_IN:
             pass
         else:
-            logger.debug(f"unrecognized ev code: {ev}")
+            logger.debug(f'unrecognized ev code: {ev}')
 
     def _accept(self):
         try:
@@ -215,7 +320,7 @@ class SHMServer():
             # pop out 4 bytes of the length field, and then, we'll need to
             # receive a block that matchs the length
             length_bt = conn.pop_data(4)
-            length = pystruct.unpack('<I', length_bt)
+            length = pystruct.unpack('<I', length_bt)[0]
             conn.set_next_blk_size(length)
 
     def _handle_in(self, fd):
@@ -279,4 +384,226 @@ class SHMServer():
             )
             return
 
-        
+        if pkt.action == SHM_ACT_INIT:
+            self._handle_init(pkt, conn)
+        elif pkt.action == SHM_ACT_RA:
+            self._handle_read_all(pkt, conn)
+        elif pkt.action == SHM_ACT_GET:
+            self._handle_get(pkt, conn)
+        elif pkt.action == SHM_ACT_SET:
+            self._handle_set(pkt, conn)
+        elif pkt.action == SHM_ACT_PUT:
+            self._handle_put(pkt, conn)
+        elif pkt.action == SHM_ACT_RM:
+            self._handle_remove(pkt, conn)
+        elif pkt.action == SHM_ACT_DLT:
+            self._handle_delete(pkt, conn)
+        else:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_NO_SUCH_ACTION,
+                    f'unknown action: {pkt.action}',
+                )
+            )
+            return
+
+    def _handle_init(self, pkt, conn):
+        if pkt.key in self._mem_pool:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_KEY_CONFLICTION,
+                    f'key exists: {pkt.key}'
+                )
+            )
+            return
+
+        if not VerifiTools.type_matched(pkt.key, str):
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'invalid type of key'
+                )
+            )
+            return
+
+        if pkt.type == SHM_TYPE_NC:
+            dv = None
+        elif pkt.type == SHM_TYPE_ARY:
+            dv = list()
+        elif pkt.type == SHM_TYPE_OBJ:
+            dv = dict()
+
+        self._mem_pool.update( {pkt.key: dv} )
+        self._replay(conn, self._gen_ok_resp())
+
+    @__existence_confirmed
+    def _handle_read_all(self, pkt, conn):
+        data = self._mem_pool.get(pkt.key)
+        self._replay(conn, self._gen_ok_resp(data))
+
+    @__existence_confirmed
+    def _handle_get(self, pkt, conn):
+        if pkt.type == SHM_TYPE_ARY:
+            index = pkt.data
+            container = self._mem_pool.get(pkt.key)
+
+            if not (
+                VerifiTools.type_matched(index, int) and
+                len(container) - 1 >= index
+            ):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_INDEX_ERROR,
+                        f'invalid index: {index}'
+                    )
+                )
+                return
+
+            self._replay(conn, self._gen_ok_resp(container[index]))
+            return
+
+        elif pkt.type == SHM_TYPE_OBJ:
+            ik = pkt.data
+            container = self._mem_pool.get(pkt.key)
+
+            if not VerifiTools.type_matched(ik, str):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_INNER_KEY_ERROR,
+                        f'invalid inner key: {ik}'
+                    )
+                )
+                return
+
+            self._replay(conn, self._gen_ok_resp(container.get(ik)))
+            return
+        else:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'unsupported type: {pkt.type}'
+                )
+            )
+            return
+
+    @__existence_confirmed
+    def _handle_set(self, pkt, conn):
+        if pkt.type != SHM_TYPE_NC:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'unsupported type: {pkt.type}'
+                )
+            )
+
+        self._mem_pool.update({pkt.key: pkt.data})
+        self._replay(conn, self._gen_ok_resp())
+
+    @__existence_confirmed
+    def _handle_put(self, pkt, conn):
+        if pkt.type == SHM_TYPE_ARY:
+            data = pkt.data
+            container = self._mem_pool.get(pkt.key)
+
+            if not VerifiTools.type_matched(data, list):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_TYPE_ERROR,
+                        f'invalid data type'
+                    )
+                )
+                return
+
+            container.extend(data)
+            self._replay(conn, self._gen_ok_resp())
+            return
+
+        elif pkt.type == SHM_TYPE_OBJ:
+            container = self._mem_pool.get(pkt.key)
+
+            if not VerifiTools.type_matched(pkt.data, ODict):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_TYPE_ERROR,
+                        f'invalid data type'
+                    )
+                )
+                return
+
+            data = pkt.data.__to_dict__()
+            container.update(**data)
+            self._replay(conn, self._gen_ok_resp())
+            return
+        else:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'unsupported type: {pkt.type}'
+                )
+            )
+            return
+
+    @__existence_confirmed
+    def _handle_remove(self, pkt, conn):
+        if pkt.type == SHM_TYPE_ARY:
+            index = pkt.data
+            container = self._mem_pool.get(pkt.key)
+
+            if not (
+                VerifiTools.type_matched(index, int) and
+                len(container) - 1 >= index
+            ):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_INDEX_ERROR,
+                        f'invalid index: {index}'
+                    )
+                )
+                return
+
+            container.pop(index)
+            self._replay(conn, self._gen_ok_resp())
+            return
+
+        elif pkt.type == SHM_TYPE_OBJ:
+            ik = pkt.data
+            container = self._mem_pool.get(pkt.key)
+
+            if not VerifiTools.type_matched(ik, str):
+                self._replay(
+                    conn,
+                    self._gen_err_resp(
+                        SHM_RCODE_INNER_KEY_ERROR,
+                        f'invalid inner key: {ik}'
+                    )
+                )
+                return
+
+            container.pop(ik)
+            self._replay(conn, self._gen_ok_resp())
+            return
+        else:
+            self._replay(
+                conn,
+                self._gen_err_resp(
+                    SHM_RCODE_TYPE_ERROR,
+                    f'unsupported type: {pkt.type}'
+                )
+            )
+            return
+
+    @__existence_confirmed
+    def _handle_delete(self, pkt, conn):
+        self._mem_pool.pop(pkt.key)
+        self._replay(conn, self._gen_ok_resp())
