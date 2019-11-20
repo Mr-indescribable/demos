@@ -7,11 +7,20 @@ import logging
 from ..glb import GLBInfo
 from ..util.od import ODict
 from ..util.misc import VerifiTools
-from ..exceptions import AddressAlreadyInUse, TryAgain, ConnectionLost
+from ..exceptions import (
+    AddressAlreadyInUse,
+    ConnectionLost,
+    TryAgain,
+    SHMError,
+)
 from ..fdx.tcp import FDXTCPConn
 from ..aff.tcp import TCPServerAff
 from ..ev.epoll import EpollPoller
-from ..helper.tcp import NonblockingTCPIOHelper
+from ..helper.tcp import (
+    TCPConnHelper,
+    TCPPacketHelper,
+    NonblockingTCPIOHelper,
+)
 
 
 logger = logging.getLogger('SHM')
@@ -43,10 +52,10 @@ class SHMServerAff(TCPServerAff):
 
     def __init__(self, sock_path):
         self._sock_path = sock_path
-        self._sock = self.__create_sock(self._sock_path)
+        self._sock = self.__create_sock(self._sock_path, 64)
         self.fd = self._sock.fileno()
 
-    def __create_sock(self, sock_path):
+    def __create_sock(self, sock_path, backlog):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.setblocking(False)
 
@@ -64,6 +73,7 @@ class SHMServerAff(TCPServerAff):
             else:
                 raise e
 
+        sock.listen(backlog)
         return sock
 
 
@@ -96,6 +106,15 @@ def __existence_confirmed(func):
         return func(self, pkt, conn)
 
     return wrapper
+
+
+def __try_to_parse_next_blk_size(conn):
+    if conn.next_blk_size is None and conn.recv_buf_len >= 4:
+        # pop out 4 bytes of the length field, and then, we'll need to
+        # receive a block that matchs the length
+        length_bt = conn.pop_data(4)
+        length = pystruct.unpack('<I', length_bt)[0]
+        conn.set_next_blk_size(length)
 
 
 # The Shared Memory Server
@@ -315,14 +334,6 @@ class SHMServer():
         conn = FDXTCPConn(conn, src)
         self._poller.register(conn.fd, self._poller.DEFAULT_EV, conn)
 
-    def __try_to_parse_next_blk_size(self, conn):
-        if conn.next_blk_size is None and conn.recv_buf_len >= 4:
-            # pop out 4 bytes of the length field, and then, we'll need to
-            # receive a block that matchs the length
-            length_bt = conn.pop_data(4)
-            length = pystruct.unpack('<I', length_bt)[0]
-            conn.set_next_blk_size(length)
-
     def _handle_in(self, fd):
         conn = self._poller.get_registered_obj(fd)
         pkt_ready = False
@@ -341,11 +352,11 @@ class SHMServer():
                 # otherwise, we are waiting for the rest data of the packet.
                 return
 
-            self.__try_to_parse_next_blk_size(conn)
+            __try_to_parse_next_blk_size(conn)
 
             # And we may try again and see if the packet is ready to be parsed.
             try:
-                pkt = self._io_helper.pop_packet(conn)
+                pkt = TCPPacketHelper.pop_packet(conn)
                 pkt_ready = True
             except TryAgain:
                 # In this case, nothing we can do now,
@@ -446,9 +457,11 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_get(self, pkt, conn):
-        if pkt.type == SHM_TYPE_ARY:
+        container = self._mem_pool.get(pkt.key)
+
+        # SHM_TYPE_ARY
+        if VerifiTools.type_matched(container, list):
             index = pkt.data
-            container = self._mem_pool.get(pkt.key)
 
             if not (
                 VerifiTools.type_matched(index, int) and
@@ -466,9 +479,9 @@ class SHMServer():
             self._replay(conn, self._gen_ok_resp(container[index]))
             return
 
-        elif pkt.type == SHM_TYPE_OBJ:
+        # SHM_TYPE_OBJ
+        elif VerifiTools.type_matched(container, dict):
             ik = pkt.data
-            container = self._mem_pool.get(pkt.key)
 
             if not VerifiTools.type_matched(ik, str):
                 self._replay(
@@ -508,10 +521,11 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_put(self, pkt, conn):
-        if pkt.type == SHM_TYPE_ARY:
-            data = pkt.data
-            container = self._mem_pool.get(pkt.key)
+        container = self._mem_pool.get(pkt.key)
 
+        # SHM_TYPE_ARY
+        if VerifiTools.type_matched(container, list):
+            data = pkt.data
             if not VerifiTools.type_matched(data, list):
                 self._replay(
                     conn,
@@ -526,9 +540,8 @@ class SHMServer():
             self._replay(conn, self._gen_ok_resp())
             return
 
-        elif pkt.type == SHM_TYPE_OBJ:
-            container = self._mem_pool.get(pkt.key)
-
+        # SHM_TYPE_OBJ
+        elif VerifiTools.type_matched(container, dict):
             if not VerifiTools.type_matched(pkt.data, ODict):
                 self._replay(
                     conn,
@@ -555,7 +568,10 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_remove(self, pkt, conn):
-        if pkt.type == SHM_TYPE_ARY:
+        container = self._mem_pool.get(pkt.key)
+
+        # SHM_TYPE_ARY
+        if VerifiTools.type_matched(container, list):
             index = pkt.data
             container = self._mem_pool.get(pkt.key)
 
@@ -576,9 +592,9 @@ class SHMServer():
             self._replay(conn, self._gen_ok_resp())
             return
 
-        elif pkt.type == SHM_TYPE_OBJ:
+        # SHM_TYPE_OBJ
+        elif VerifiTools.type_matched(container, dict):
             ik = pkt.data
-            container = self._mem_pool.get(pkt.key)
 
             if not VerifiTools.type_matched(ik, str):
                 self._replay(
@@ -607,3 +623,77 @@ class SHMServer():
     def _handle_delete(self, pkt, conn):
         self._mem_pool.pop(pkt.key)
         self._replay(conn, self._gen_ok_resp())
+
+
+class SHMClient():
+
+    RECV_MAX_RETRY = 4
+
+    def __init__(self):
+        self._sock_path = GLBInfo.config.shm.socket
+
+        conn = TCPConnHelper(self._sock_path, blocking=True)
+        self._conn = FDXTCPConn(conn, src=None, blocking=True)
+
+    def _gen_req(self, action, key, type_=None, data=None):
+        r_json = {
+            'action': action,
+            'key': key,
+            'type': type_,
+            'data': data,
+        }
+        r_bytes = json.dumps(r_json).encode()
+        len_byte = len(r_bytes)
+
+        return pystruct.pack('<I', len_byte) + r_bytes
+
+    # Sends a request to the SHMServer and returns the response
+    def _req(self, action, key, type_=None, data=None):
+        tried_times = 0
+        pkt_ready = False
+
+        req_data = self._gen_req(action, key, type_, data)
+        self._conn.send(req_data)
+
+        # The server must answer correctly, otherwise we can no longer let
+        # the program run. The SHMError is similar with a failure of malloc()
+        # or segmentation fault.
+        while tried_times < self.RECV_MAX_RETRY:
+            try:
+                self._conn.recv()
+                __try_to_parse_next_blk_size(self._conn)
+                pkt = TCPPacketHelper.pop_packet(conn)
+                pkt_ready = True
+                break
+            except TryAgain:
+                tried_times += 1
+                continue
+
+        if not pkt_ready:
+            raise SHMError('No sufficient bytes received from SHMServer')
+
+        try:
+            return json.loads(pkt.decode())
+        except Exception:
+            raise SHMError('SHMServer does not respond correctly')
+
+    def _req_init(self, key, type_):
+        return self._req(SHM_ACT_INIT, key, type_=type_)
+
+    def _req_read_all(self, key):
+        return self._req(SHM_ACT_RA, key)
+
+    def _req_get(self, key, data):
+        return self._req(SHM_ACT_GET, key, data=data)
+
+    def _req_set(self, key, data):
+        return self._req(SHM_ACT_SET, key, data=data)
+
+    def _req_put(self, key, data):
+        return self._req(SHM_ACT_PUT, key, data=data)
+
+    def _req_remove(self, key, data):
+        return self._req(SHM_ACT_RM, key, data=data)
+
+    def _req_delete(self, key):
+        return self._req(SHM_ACT_DLT, key)

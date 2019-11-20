@@ -29,6 +29,19 @@ class TCPConnHelper():
                     raise e
 
 
+class TCPPacketHelper():
+
+    @classmethod
+    def pop_packet(cls, aff):
+        if (
+            aff.next_blk_size is not None and
+            aff.recv_buf_len > aff.next_blk_size
+        ):
+            return aff.pop_data(aff.next_blk_size)
+        else:
+            raise TryAgain()
+
+
 class NonblockingTCPIOHelper():
 
     def __init__(self, poller):
@@ -45,15 +58,6 @@ class NonblockingTCPIOHelper():
         aff.recv()
 
         return self.pop_packet(aff)
-
-    def pop_packet(self, aff):
-        if (
-            aff.next_blk_size is not None and
-            aff.recv_buf_len > aff.next_blk_size
-        ):
-            return aff.pop_data(aff.next_blk_size)
-        else:
-            raise TryAgain()
 
     # sends data from the efferent's buffer
     # the data argument is not essential since it's not the actual data to send
