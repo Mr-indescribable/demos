@@ -1,6 +1,5 @@
 import errno
 import socket
-import struct
 import logging
 
 from ..utils.misc import errno_from_exception
@@ -12,7 +11,7 @@ logger = logging.getLogger('Main')
 
 
 TCP_BACKLOG = 128
-TCP_BUFFER_SIZE = 65536
+TCP_RECV_SIZE = 65536
 
 
 SO_ORIGINAL_DST = 80
@@ -23,7 +22,7 @@ SO_ORIGINAL_DST = 80
 # TCPAff objects are always in half-duplex mode.
 class TCPAff():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None):
+    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
         # A register that stores an integer (or None) which means the size of
         # the next block incoming. This is shortcut for easily avoiding
         # parsing the length field for multiple times.
@@ -49,19 +48,31 @@ class TCPAff():
         # In other words, if the cryptor is not provided,
         # the afferent will work in plain mode.
         self._cryptor = cryptor
+        self._blocking = blocking
 
         self.fd = self._sock.fileno()
-        self._sock.setblocking(False)
+        self._sock.setblocking(blocking)
 
     def destroy(self):
         self._sock.close()
         self._sock = None
 
-    # receives data from the socket and put it into the buffer
-    # returns the length of the received data block
-    def recv(self):
+    def _recv_blking(self):
+        data = self._sock.recv(TCP_RECV_SIZE)
+
+        if len(data) == 0:
+            raise ConnectionLost()
+
+        if self._plain_mod:
+            self._raw_buf += data
+        else:
+            self._pln_buf += self._cryptor.decrypt(data)
+
+        return len(data)
+
+    def _recv_nblking(self):
         try:
-            data = self._sock.recv(TCP_BUFFER_SIZE)
+            data = self._sock.recv(TCP_RECV_SIZE)
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
                 raise TryAgain()
@@ -77,6 +88,14 @@ class TCPAff():
             self._pln_buf += self._cryptor.decrypt(data)
 
         return len(data)
+
+    # receives data from the socket and put it into the buffer
+    # returns the length of the received data block
+    def recv(self):
+        if self._blocking:
+            return self._recv_blking()
+        else:
+            return self._recv_nblking()
 
     def update_cryptor(self, cryptor):
         if self._plain_mod:

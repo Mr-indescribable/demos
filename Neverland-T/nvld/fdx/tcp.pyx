@@ -11,15 +11,16 @@ from ..eff.tcp import TCPEff
 # thus, we can use it as if either it's an aff or an eff.
 class FDXTCPConn():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None):
+    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
         self._conn = conn
         self._src = src
         self._plain_mod = plain_mod
         self._cryptor = cryptor
+        self._blocking = blocking
         self.fd = conn.fileno()
 
-        self._aff = TCPAff(conn, src, plain_mod, cryptor)
-        self._eff = TCPEff(conn, src, plain_mod, cryptor)
+        self._aff = TCPAff(conn, src, plain_mod, cryptor, blocking)
+        self._eff = TCPEff(conn, src, plain_mod, cryptor, blocking)
 
     def recv(self):
         return self._aff.recv()

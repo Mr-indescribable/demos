@@ -1,4 +1,32 @@
+import errno
+import socket
+
 from ..exceptions import TryAgain
+from ..utils.misc import errno_from_exception
+
+
+class TCPConnHelper():
+
+    # Connects to a specified Unix Domain Socket file and returns the socket
+    @classmethod
+    def conn_to_uds(cls, socket_name, blocking=False):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.setblocking(blocking)
+
+        if blocking:
+            sock.connect(socket_name)
+            return sock
+        else:
+            # In non-blocking mod, the socket object will be returned
+            # immediately when the EINPROGRESS occurred, the user
+            # should check if the socket is ready to be used.
+            try:
+                sock.connect(socket_name)
+            except OSError as e:
+                if errno_from_exception == errno.EINPROGRESS:
+                    return sock
+                else:
+                    raise e
 
 
 class NonblockingTCPIOHelper():

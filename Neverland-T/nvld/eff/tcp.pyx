@@ -1,6 +1,5 @@
 import errno
 import socket
-import struct
 import logging
 
 from ..utils.misc import errno_from_exception
@@ -19,24 +18,36 @@ TCP_BLOCK_SIZE = 32768
 # TCPEff objects are always in half-duplex mode.
 class TCPEff():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None):
+    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
         self._send_buf = b''
 
         self._sock = conn
         self.src = src
         self.plain_mod = plain_mod
         self._cryptor = cryptor
+        self._blocking = blocking
 
         self.fd = self._sock.fileno()
-        self._sock.setblocking(False)
+        self._sock.setblocking(blocking)
 
     def destroy(self):
         self._sock.close()
         self._sock = None
 
-    # writes data into the socket and returns number of bytes that
-    # has been written into the socket.
-    def send(self, data=b''):
+    def _send_blking(self, data=b''):
+        # to be compatible with the non-blocking api, the zero length
+        # data should be allowed here
+        if len(data) == 0:
+            return
+
+        if self.plain_mod:
+            d2s = data
+        else:
+            d2s = self._cryptor.encrypt(data) if len(data) > 0 else b''
+
+        return self._sock.send(d2s)
+
+    def _send_nblking(self, data=b''):
         if self.plain_mod:
             pending = data
         else:
@@ -67,6 +78,14 @@ class TCPEff():
         self._send_buf = self._send_buf[bt_sent:]
 
         return bt_sent
+
+    # writes data into the socket and returns number of bytes that
+    # has been written into the socket.
+    def send(self, data=b''):
+        if self._blocking:
+            return self._send_blking(data)
+        else:
+            return self._send_nblking(data)
 
     def append_data(self, data):
         self._send_buf += data
