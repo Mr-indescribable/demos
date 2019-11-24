@@ -4,7 +4,6 @@ import logging
 
 from ..utils.misc import errno_from_exception
 from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
-from ..pkt import TCPPacket
 
 
 logger = logging.getLogger('Main')

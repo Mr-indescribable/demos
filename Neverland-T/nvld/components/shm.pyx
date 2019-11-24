@@ -5,8 +5,8 @@ import struct as pystruct
 import logging
 
 from ..glb import GLBInfo
-from ..util.od import ODict
-from ..util.misc import VerifiTools
+from ..utils.od import ODict
+from ..utils.misc import VerifiTools
 from ..exceptions import (
     AddressAlreadyInUse,
     ConnectionLost,
@@ -260,7 +260,7 @@ class SHMServer():
 
     def __init__(self):
         self._sock_path = GLBInfo.config.shm.socket
-        self._server_aff = SHMServerAff(self.sock_path)
+        self._server_aff = SHMServerAff(self._sock_path)
         self._server_fd = self._server_aff.fd
 
         self._poller = EpollPoller()
@@ -272,12 +272,22 @@ class SHMServer():
         self._io_helper = NonblockingTCPIOHelper(self._poller)
 
         self._mem_pool = dict()
+        self._running = False
 
     def run(self):
-        evs = self._poller.poll()
+        logger.info('SHMServer starts')
 
-        for fd, ev in evs:
-            self._handle_ev(fd, ev)
+        self._running = True
+        while self._running:
+            evs = self._poller.poll()
+
+            for fd, ev in evs:
+                self._handle_ev(fd, ev)
+
+        logger.info('SHMServer stops')
+
+    def shutdown(self):
+        self._running = False
 
     def _gen_resp(
         self,
@@ -625,6 +635,30 @@ class SHMServer():
         self._replay(conn, self._gen_ok_resp())
 
 
+# handles unexpected exceptions for SHMClient,
+# converts all exceptions except SHMError to SHMError
+def __other_exceptions_handled(func):
+
+    def wrapper(self, *args):
+        try:
+            return func(self, *args)
+        except SHMError as shm_err:
+            raise shm_err
+        except Exception as err:
+            if len(err.args > 0):
+                raise SHMError(
+                    f'Unexpected exception {type(err)} '
+                    f'with message: {err.args[0]}'
+                )
+            else:
+                raise SHMError(
+                    f'Unexpected exception {type(err)} '
+                    f'with no additional information'
+                )
+
+    return wrapper
+
+
 class SHMClient():
 
     RECV_MAX_RETRY = 4
@@ -632,7 +666,7 @@ class SHMClient():
     def __init__(self):
         self._sock_path = GLBInfo.config.shm.socket
 
-        conn = TCPConnHelper(self._sock_path, blocking=True)
+        conn = TCPConnHelper.conn_to_uds(self._sock_path, blocking=True)
         self._conn = FDXTCPConn(conn, src=None, blocking=True)
 
     def _gen_req(self, action, key, type_=None, data=None):
@@ -662,7 +696,7 @@ class SHMClient():
             try:
                 self._conn.recv()
                 __try_to_parse_next_blk_size(self._conn)
-                pkt = TCPPacketHelper.pop_packet(conn)
+                pkt = TCPPacketHelper.pop_packet(self._conn)
                 pkt_ready = True
                 break
             except TryAgain:
@@ -673,27 +707,51 @@ class SHMClient():
             raise SHMError('No sufficient bytes received from SHMServer')
 
         try:
-            return json.loads(pkt.decode())
+            j_resp = json.loads(pkt.decode())
+            return ODict(**j_resp)
         except Exception:
             raise SHMError('SHMServer does not respond correctly')
 
-    def _req_init(self, key, type_):
-        return self._req(SHM_ACT_INIT, key, type_=type_)
+    def _check_rcode(self, resp, op_name):
+        if not resp.rt.rcode == SHM_RCODE_OK:
+            raise SHMError(
+                f'Operation {op_name} failed, '
+                f'rcode: {resp.rt.rcode}, rmsg: {resp.rt.rmsg}'
+            )
 
-    def _req_read_all(self, key):
-        return self._req(SHM_ACT_RA, key)
+    @__other_exceptions_handled
+    def init(self, key, type_):
+        resp = self._req(SHM_ACT_INIT, key, type_=type_)
+        self._check_rcode(resp, 'INIT')
 
-    def _req_get(self, key, data):
-        return self._req(SHM_ACT_GET, key, data=data)
+    @__other_exceptions_handled
+    def read_all(self, key):
+        resp = self._req(SHM_ACT_RA, key)
+        self._check_rcode(resp, 'READ_ALL')
+        return resp.data
 
-    def _req_set(self, key, data):
-        return self._req(SHM_ACT_SET, key, data=data)
+    @__other_exceptions_handled
+    def get(self, key, data):
+        resp = self._req(SHM_ACT_GET, key, data=data)
+        self._check_rcode(resp, 'GET')
+        return resp.data
 
-    def _req_put(self, key, data):
-        return self._req(SHM_ACT_PUT, key, data=data)
+    @__other_exceptions_handled
+    def set(self, key, data):
+        resp = self._req(SHM_ACT_SET, key, data=data)
+        self._check_rcode(resp, 'SET')
 
-    def _req_remove(self, key, data):
-        return self._req(SHM_ACT_RM, key, data=data)
+    @__other_exceptions_handled
+    def put(self, key, data):
+        resp = self._req(SHM_ACT_PUT, key, data=data)
+        self._check_rcode(resp, 'PUT')
 
-    def _req_delete(self, key):
-        return self._req(SHM_ACT_DLT, key)
+    @__other_exceptions_handled
+    def remove(self, key, data):
+        resp = self._req(SHM_ACT_RM, key, data=data)
+        self._check_rcode(resp, 'REMOVE')
+
+    @__other_exceptions_handled
+    def delete(self, key):
+        resp = self._req(SHM_ACT_DLT, key)
+        self._check_rcode(resp, 'DELETE')

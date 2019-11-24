@@ -3,7 +3,6 @@ import socket
 import logging
 
 from ..utils.misc import errno_from_exception
-from ..pkt import TCPPacket
 
 
 logger = logging.getLogger('Main')
