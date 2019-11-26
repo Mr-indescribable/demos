@@ -36,16 +36,28 @@ def _update_config(**kwargs):
     GLBInfo.config = config
 
 
-def test_openssl():
-    for cipher_name in OpenSSLCryptor.supported_ciphers:
-        _update_config(cipher=cipher_name)
-        _test_cipher()
+# We must lock up the global config in all these tests,
+# otherwise we'll face race conditions.
+def test_openssl(gl_config):
+    try:
+        gl_config.acquire()
+
+        for cipher_name in OpenSSLCryptor.supported_ciphers:
+            _update_config(cipher=cipher_name)
+            _test_cipher()
+    finally:
+        gl_config.release()
 
 
-def test_kc_gcm():
-    for cipher_name in GCMKernelCryptor.supported_ciphers:
-        _update_config(cipher=cipher_name)
-        _test_cipher()
+def test_kc_gcm(gl_config):
+    try:
+        gl_config.acquire()
+
+        for cipher_name in GCMKernelCryptor.supported_ciphers:
+            _update_config(cipher=cipher_name)
+            _test_cipher()
+    finally:
+        gl_config.release()
 
 
 def _test_cipher():

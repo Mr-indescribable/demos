@@ -38,8 +38,25 @@ def _ginit():
     GLBComponent._INITED = True
 
 
-_ginit()
-packet_wrapper = PacketWrapper()
+packet_wrapper = None
+
+
+def __with_globals(func):
+
+    def wrapper(gl_config, *args, **kwargs):
+        global packet_wrapper
+
+        try:
+            gl_config.acquire()
+
+            _ginit()
+            packet_wrapper = PacketWrapper()
+
+            return func(*args, **kwargs)
+        finally:
+            gl_config.release()
+
+    return wrapper
 
 
 def _test_pack_numeral_type(type_, struct_fmt, value, v_uplimit):
@@ -60,6 +77,7 @@ def _test_pack_numeral_type(type_, struct_fmt, value, v_uplimit):
             packet_wrapper._pack_field(value, type_)
 
 
+@__with_globals
 def test_pack_field_u_char():
     uplimit = 0xFF
 
@@ -72,6 +90,7 @@ def test_pack_field_u_char():
         )
 
 
+@__with_globals
 def test_pack_field_u_short():
     uplimit = 0xFFFF
 
@@ -84,6 +103,7 @@ def test_pack_field_u_short():
         )
 
 
+@__with_globals
 def test_pack_field_u_int():
     uplimit = 0xFFFFFFFF
 
@@ -96,6 +116,7 @@ def test_pack_field_u_int():
         )
 
 
+@__with_globals
 def test_pack_field_u_long_long():
     #              4   8   12  16
     #              |   |   |   |
@@ -110,6 +131,7 @@ def test_pack_field_u_long_long():
         )
 
 
+@__with_globals
 def test_pack_field_ipv4_sa():
     ip = '127.0.0.1'
     port = 12345
@@ -124,11 +146,13 @@ def test_pack_field_ipv4_sa():
     assert expected == res
 
 
+@__with_globals
 def test_pack_field_ipv6_sa():
     # NotImplemented
     pass
 
 
+@__with_globals
 def test_pack_field_py_bytes():
     data = 'a striiiiiiiiiiiiiiing'
     res = packet_wrapper._pack_field(data, FieldTypes.PY_BYTES)
@@ -139,6 +163,7 @@ def test_pack_field_py_bytes():
     assert data == res
 
 
+@__with_globals
 def test_pack_field_py_dict():
     data = {
         'a': 1,
@@ -172,6 +197,7 @@ def _test_unpack_numeral_type(type_, struct_fmt, data, length):
             packet_wrapper._unpack_field(data, type_)
 
 
+@__with_globals
 def test_unpack_field_u_char():
     length = 1
 
@@ -184,6 +210,7 @@ def test_unpack_field_u_char():
         )
 
 
+@__with_globals
 def test_unpack_field_u_short():
     length = 2
 
@@ -196,6 +223,7 @@ def test_unpack_field_u_short():
         )
 
 
+@__with_globals
 def test_unpack_field_u_int():
     length = 4
 
@@ -208,6 +236,7 @@ def test_unpack_field_u_int():
         )
 
 
+@__with_globals
 def test_unpack_field_u_long_long():
     length = 8
 
@@ -220,6 +249,7 @@ def test_unpack_field_u_long_long():
         )
 
 
+@__with_globals
 def test_unpack_field_ipv4_sa():
     ip = '127.0.0.1'
     port = 12345
@@ -235,17 +265,20 @@ def test_unpack_field_ipv4_sa():
     assert (ip, port) == res
 
 
+@__with_globals
 def test_unpack_field_ipv6_sa():
     # NotImplemented
     pass
 
 
+@__with_globals
 def test_unpack_field_py_bytes():
     data = b'byteeeeeeeeeeeeeeee'
     res = packet_wrapper._unpack_field(data, FieldTypes.PY_BYTES)
     assert data == res
 
 
+@__with_globals
 def test_unpack_field_py_dict():
     data = {
         'a': 1,
@@ -260,6 +293,7 @@ def test_unpack_field_py_dict():
     assert data == res
 
 
+@__with_globals
 def test_make_n_parse_tcp_pkt():
     # Prepare 4 types of packets
     data_pkt_fields = {

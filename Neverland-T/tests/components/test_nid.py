@@ -1,7 +1,6 @@
 import json
 
 from nvld.components.nid import NIDMgr
-from nvld.glb import GLBInfo
 
 
 data_2_test = {

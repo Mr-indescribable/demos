@@ -10,17 +10,22 @@ from nvld.glb import GLBInfo
 
 def with_glb_conf(func):
 
-    def wrapper(*args, **kwargs):
-        conf_dict = {
-            'shm': {
-                'socket': '/tmp/nvld-shm.socket'
+    def wrapper(gl_config, *args, **kwargs):
+        try:
+            gl_config.acquire()
+
+            conf_dict = {
+                'shm': {
+                    'socket': '/tmp/nvld-shm.socket'
+                }
             }
-        }
 
-        GLBInfo._INITED = True
-        GLBInfo.config = ODict(**conf_dict)
+            GLBInfo._INITED = True
+            GLBInfo.config = ODict(**conf_dict)
 
-        return func(*args, **kwargs)
+            return func(*args, **kwargs)
+        finally:
+            gl_config.release()
 
     return wrapper
 
@@ -74,25 +79,25 @@ def test_run_server():
         server.run()
 
 
-@with_glb_conf
-@with_shm_server
-def test_init():
-    KEY_STR  = 'K0'
-    KEY_INT  = 'K1'
-    KEY_BOOL = 'K2'
-    KEY_NULL = 'K3'
-    KEY_LIST = 'K4'
-    KEY_DICT = 'K5'
+# @with_glb_conf
+# @with_shm_server
+# def test_init():
+    # KEY_STR  = 'K0'
+    # KEY_INT  = 'K1'
+    # KEY_BOOL = 'K2'
+    # KEY_NULL = 'K3'
+    # KEY_LIST = 'K4'
+    # KEY_DICT = 'K5'
 
-    # The client will check the rcode for us,
-    # so we don't need to do any additional check here.
-    shm = SHMClient()
-    shm.init(KEY_STR,  SHM_TYPE_NC)
-    shm.init(KEY_INT,  SHM_TYPE_NC)
-    shm.init(KEY_BOOL, SHM_TYPE_NC)
-    shm.init(KEY_NULL, SHM_TYPE_NC)
-    shm.init(KEY_LIST, SHM_TYPE_ARY)
-    shm.init(KEY_DICT, SHM_TYPE_OBJ)
+    # # The client will check the rcode for us,
+    # # so we don't need to do any additional check here.
+    # shm = SHMClient()
+    # shm.init(KEY_STR,  SHM_TYPE_NC)
+    # shm.init(KEY_INT,  SHM_TYPE_NC)
+    # shm.init(KEY_BOOL, SHM_TYPE_NC)
+    # shm.init(KEY_NULL, SHM_TYPE_NC)
+    # shm.init(KEY_LIST, SHM_TYPE_ARY)
+    # shm.init(KEY_DICT, SHM_TYPE_OBJ)
 
 
 # def test_read_all():
