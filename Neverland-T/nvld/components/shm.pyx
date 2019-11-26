@@ -1,3 +1,4 @@
+import os
 import json
 import select
 import socket
@@ -75,6 +76,11 @@ class SHMServerAff(TCPServerAff):
 
         sock.listen(backlog)
         return sock
+
+    def destroy(self):
+        self._sock.close()
+        self._sock = None
+        os.remove(self._sock_path)
 
 
 # A descriptor for helping the SHMServer in processing requests.
@@ -284,6 +290,7 @@ class SHMServer():
             for fd, ev in evs:
                 self._handle_ev(fd, ev)
 
+        self._server_aff.destroy()
         logger.info('SHMServer stops')
 
     def shutdown(self):
