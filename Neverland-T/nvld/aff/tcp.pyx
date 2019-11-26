@@ -52,9 +52,18 @@ class TCPAff():
         self.fd = self._sock.fileno()
         self._sock.setblocking(blocking)
 
+    def settimeout(self, timeout):
+        self._sock.settimeout(timeout)
+
     def destroy(self):
         self._sock.close()
         self._sock = None
+
+    def _store_data(self, data):
+        if self._plain_mod:
+            self._raw_buf += data
+        else:
+            self._pln_buf += self._cryptor.decrypt(data)
 
     def _recv_blking(self):
         data = self._sock.recv(TCP_RECV_SIZE)
@@ -62,11 +71,7 @@ class TCPAff():
         if len(data) == 0:
             raise ConnectionLost()
 
-        if self._plain_mod:
-            self._raw_buf += data
-        else:
-            self._pln_buf += self._cryptor.decrypt(data)
-
+        self._store_data(data)
         return len(data)
 
     def _recv_nblking(self):
@@ -81,11 +86,7 @@ class TCPAff():
         if len(data) == 0:
             raise ConnectionLost()
 
-        if self._plain_mod:
-            self._raw_buf += data
-        else:
-            self._pln_buf += self._cryptor.decrypt(data)
-
+        self._store_data(data)
         return len(data)
 
     # receives data from the socket and put it into the buffer

@@ -25,5 +25,6 @@ if __name__ == '__main__':
     libpath = find_libpath()
     sys.path.append(libpath)
 
+    sys.argv.append("-s")
     sys.argv.append("tests")
     sys.exit(pytest_main())

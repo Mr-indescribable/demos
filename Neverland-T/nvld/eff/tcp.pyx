@@ -29,6 +29,9 @@ class TCPEff():
         self.fd = self._sock.fileno()
         self._sock.setblocking(blocking)
 
+    def settimeout(self, timeout):
+        self._sock.settimeout(timeout)
+
     def destroy(self):
         self._sock.close()
         self._sock = None

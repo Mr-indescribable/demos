@@ -22,6 +22,9 @@ class FDXTCPConn():
         self._aff = TCPAff(conn, src, plain_mod, cryptor, blocking)
         self._eff = TCPEff(conn, src, plain_mod, cryptor, blocking)
 
+    def settimeout(self, timeout):
+        self._conn.settimeout(timeout)
+
     def recv(self):
         return self._aff.recv()
 

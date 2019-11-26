@@ -9,8 +9,9 @@ class TCPConnHelper():
 
     # Connects to a specified Unix Domain Socket file and returns the socket
     @classmethod
-    def conn_to_uds(cls, socket_name, blocking=False):
+    def conn_to_uds(cls, socket_name, blocking=False, timeout=None):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
         sock.setblocking(blocking)
 
         if blocking:
@@ -35,9 +36,11 @@ class TCPPacketHelper():
     def pop_packet(cls, aff):
         if (
             aff.next_blk_size is not None and
-            aff.recv_buf_len > aff.next_blk_size
+            aff.recv_buf_len >= aff.next_blk_size
         ):
-            return aff.pop_data(aff.next_blk_size)
+            pkt = aff.pop_data(aff.next_blk_size)
+            aff.set_next_blk_size(None)
+            return pkt
         else:
             raise TryAgain()
 
@@ -57,7 +60,7 @@ class NonblockingTCPIOHelper():
         # The helper doesn't handle ConnectionLost
         aff.recv()
 
-        return self.pop_packet(aff)
+        return TCPPacketHelper.pop_packet(aff)
 
     # sends data from the efferent's buffer
     # the data argument is not essential since it's not the actual data to send

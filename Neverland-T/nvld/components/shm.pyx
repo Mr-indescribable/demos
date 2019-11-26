@@ -273,6 +273,7 @@ class SHMServer():
         self._poller.register(
             self._server_fd,
             self._poller.EV_IN,
+            self._server_aff,
         )
 
         self._io_helper = NonblockingTCPIOHelper(self._poller)
@@ -332,24 +333,29 @@ class SHMServer():
     def _handle_ev(self, fd, ev):
         if fd == self._server_fd and ev & self._poller.EV_IN:
             self._accept()
+            return
 
         if ev & self._poller.EV_ERR | ev & self._poller.EV_RDHUP:
-            pass
+            self._handle_destroy(fd)
+            return
         elif ev & self._poller.EV_OUT:
-            pass
+            self._handle_out(fd)
+            return
         elif ev & self._poller.EV_IN:
-            pass
+            self._handle_in(fd)
+            return
         else:
             logger.debug(f'unrecognized ev code: {ev}')
+            return
 
     def _accept(self):
         try:
-            conn, src = self.SHMServerAff.accept_raw()
+            conn, src = self._server_aff.accept_raw()
         except TryAgain:
             return
 
-        conn = FDXTCPConn(conn, src)
-        self._poller.register(conn.fd, self._poller.DEFAULT_EV, conn)
+        fdxconn = FDXTCPConn(conn, src)
+        self._poller.register(fdxconn.fd, self._poller.DEFAULT_EV, fdxconn)
 
     def _handle_in(self, fd):
         conn = self._poller.get_registered_obj(fd)
@@ -668,12 +674,17 @@ def __other_exceptions_handled(func):
 
 class SHMClient():
 
+    SOCK_TIMEOUT = 1
     RECV_MAX_RETRY = 4
 
     def __init__(self):
         self._sock_path = GLBInfo.config.shm.socket
 
-        conn = TCPConnHelper.conn_to_uds(self._sock_path, blocking=True)
+        conn = TCPConnHelper.conn_to_uds(
+            self._sock_path,
+            blocking=True,
+            timeout=self.SOCK_TIMEOUT
+        )
         self._conn = FDXTCPConn(conn, src=None, blocking=True)
 
     def _gen_req(self, action, key, type_=None, data=None):
@@ -694,7 +705,7 @@ class SHMClient():
         pkt_ready = False
 
         req_data = self._gen_req(action, key, type_, data)
-        self._conn.send(req_data)
+        sent = self._conn.send(req_data)
 
         # The server must answer correctly, otherwise we can no longer let
         # the program run. The SHMError is similar with a failure of malloc()
@@ -703,10 +714,11 @@ class SHMClient():
             try:
                 self._conn.recv()
                 __try_to_parse_next_blk_size(self._conn)
+
                 pkt = TCPPacketHelper.pop_packet(self._conn)
                 pkt_ready = True
                 break
-            except TryAgain:
+            except (socket.timeout, TryAgain):
                 tried_times += 1
                 continue
 
