@@ -90,7 +90,7 @@ def __existence_confirmed(func):
 
     def wrapper(self, pkt, conn):
         if not VerifiTools.type_matched(pkt.key, str):
-            self._replay(
+            self._reply(
                 conn,
                 self._gen_err_resp(
                     SHM_RCODE_TYPE_ERROR,
@@ -100,7 +100,7 @@ def __existence_confirmed(func):
             return
 
         if pkt.key not in self._mem_pool:
-            self._replay(
+            self._reply(
                 conn,
                 self._gen_err_resp(
                     SHM_RCODE_NO_SUCH_KEY,
@@ -327,8 +327,17 @@ class SHMServer():
     def _gen_err_resp(self, rcode, rmsg):
         return self._gen_resp(data=None, rcode=rcode, rmsg=rmsg)
 
-    def _replay(self, conn, data):
+    def _reply(self, conn, data):
         self._io_helper.append_data(conn, data)
+
+    def _reply_type_error(self, conn, msg):
+        self._reply(conn, self._gen_err_resp(SHM_RCODE_TYPE_ERROR, msg))
+
+    def _reply_idx_error(self, conn, msg):
+        self._reply(conn, self._gen_err_resp(SHM_RCODE_INDEX_ERROR, msg))
+
+    def _reply_ik_error(self, conn, msg):
+        self._reply(conn, self._gen_err_resp(SHM_RCODE_INNER_KEY_ERROR, msg))
 
     def _handle_ev(self, fd, ev):
         if fd == self._server_fd and ev & self._poller.EV_IN:
@@ -433,7 +442,7 @@ class SHMServer():
         elif pkt.action == SHM_ACT_DLT:
             self._handle_delete(pkt, conn)
         else:
-            self._replay(
+            self._reply(
                 conn,
                 self._gen_err_resp(
                     SHM_RCODE_NO_SUCH_ACTION,
@@ -444,7 +453,7 @@ class SHMServer():
 
     def _handle_init(self, pkt, conn):
         if pkt.key in self._mem_pool:
-            self._replay(
+            self._reply(
                 conn,
                 self._gen_err_resp(
                     SHM_RCODE_KEY_CONFLICTION,
@@ -454,13 +463,7 @@ class SHMServer():
             return
 
         if not VerifiTools.type_matched(pkt.key, str):
-            self._replay(
-                conn,
-                self._gen_err_resp(
-                    SHM_RCODE_TYPE_ERROR,
-                    f'invalid type of key'
-                )
-            )
+            self._reply_type_error(conn, 'invalid type of key')
             return
 
         if pkt.type == SHM_TYPE_NC:
@@ -471,181 +474,116 @@ class SHMServer():
             dv = dict()
 
         self._mem_pool.update( {pkt.key: dv} )
-        self._replay(conn, self._gen_ok_resp())
+        self._reply(conn, self._gen_ok_resp())
 
     @__existence_confirmed
     def _handle_read_all(self, pkt, conn):
         data = self._mem_pool.get(pkt.key)
-        self._replay(conn, self._gen_ok_resp(data))
+        self._reply(conn, self._gen_ok_resp(data))
 
     @__existence_confirmed
     def _handle_get(self, pkt, conn):
         container = self._mem_pool.get(pkt.key)
 
-        # SHM_TYPE_ARY
         if VerifiTools.type_matched(container, list):
-            index = pkt.data
-
-            if not (
-                VerifiTools.type_matched(index, int) and
-                len(container) - 1 >= index
-            ):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_INDEX_ERROR,
-                        f'invalid index: {index}'
-                    )
-                )
-                return
-
-            self._replay(conn, self._gen_ok_resp(container[index]))
-            return
-
-        # SHM_TYPE_OBJ
+            self._handle_arr_get(pkt, conn)
         elif VerifiTools.type_matched(container, dict):
-            ik = pkt.data
-
-            if not VerifiTools.type_matched(ik, str):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_INNER_KEY_ERROR,
-                        f'invalid inner key: {ik}'
-                    )
-                )
-                return
-
-            self._replay(conn, self._gen_ok_resp(container.get(ik)))
-            return
+            self._handle_obj_get(pkt, conn)
         else:
-            self._replay(
-                conn,
-                self._gen_err_resp(
-                    SHM_RCODE_TYPE_ERROR,
-                    f'unsupported type: {pkt.type}'
-                )
-            )
-            return
+            self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
+
+    def _handle_arr_get(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+        index = pkt.data
+
+        if VerifiTools.type_matched(index, int) and len(container) - 1 >= index:
+            self._reply(conn, self._gen_ok_resp(container[index]))
+        else:
+            self._reply_idx_error(conn, f'invalid index: {index}')
+
+    def _handle_obj_get(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+        ik = pkt.data
+
+        if VerifiTools.type_matched(ik, str):
+            self._reply(conn, self._gen_ok_resp(container.get(ik)))
+        else:
+            self._reply_ik_error(conn, f'invalid inner key: {ik}')
 
     @__existence_confirmed
     def _handle_set(self, pkt, conn):
-        if pkt.type != SHM_TYPE_NC:
-            self._replay(
-                conn,
-                self._gen_err_resp(
-                    SHM_RCODE_TYPE_ERROR,
-                    f'unsupported type: {pkt.type}'
-                )
-            )
-
-        self._mem_pool.update({pkt.key: pkt.data})
-        self._replay(conn, self._gen_ok_resp())
+        if pkt.type == SHM_TYPE_NC:
+            self._mem_pool.update({pkt.key: pkt.data})
+            self._reply(conn, self._gen_ok_resp())
+        else:
+            self._reply_type_error(conn, f'unsupported type: {pkt.type}')
 
     @__existence_confirmed
     def _handle_put(self, pkt, conn):
         container = self._mem_pool.get(pkt.key)
 
-        # SHM_TYPE_ARY
         if VerifiTools.type_matched(container, list):
-            data = pkt.data
-            if not VerifiTools.type_matched(data, list):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_TYPE_ERROR,
-                        f'invalid data type'
-                    )
-                )
-                return
-
-            container.extend(data)
-            self._replay(conn, self._gen_ok_resp())
-            return
-
-        # SHM_TYPE_OBJ
+            self._handle_arr_put(pkt, conn)
         elif VerifiTools.type_matched(container, dict):
-            if not VerifiTools.type_matched(pkt.data, ODict):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_TYPE_ERROR,
-                        f'invalid data type'
-                    )
-                )
-                return
+            self._handle_obj_put(pkt, conn)
+        else:
+            self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
 
+    def _handle_arr_put(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+        data = pkt.data
+
+        if VerifiTools.type_matched(data, list):
+            container.extend(data)
+            self._reply(conn, self._gen_ok_resp())
+        else:
+            self._reply_type_error(conn, 'invalid data type')
+
+    def _handle_obj_put(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+
+        if VerifiTools.type_matched(pkt.data, ODict):
             data = pkt.data.__to_dict__()
             container.update(**data)
-            self._replay(conn, self._gen_ok_resp())
-            return
+            self._reply(conn, self._gen_ok_resp())
         else:
-            self._replay(
-                conn,
-                self._gen_err_resp(
-                    SHM_RCODE_TYPE_ERROR,
-                    f'unsupported type: {pkt.type}'
-                )
-            )
-            return
+            self._reply_type_error(conn, 'invalid data type')
 
     @__existence_confirmed
     def _handle_remove(self, pkt, conn):
         container = self._mem_pool.get(pkt.key)
 
-        # SHM_TYPE_ARY
         if VerifiTools.type_matched(container, list):
-            index = pkt.data
-            container = self._mem_pool.get(pkt.key)
-
-            if not (
-                VerifiTools.type_matched(index, int) and
-                len(container) - 1 >= index
-            ):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_INDEX_ERROR,
-                        f'invalid index: {index}'
-                    )
-                )
-                return
-
-            container.pop(index)
-            self._replay(conn, self._gen_ok_resp())
-            return
-
-        # SHM_TYPE_OBJ
+            self._handle_arr_remove(pkt, conn)
         elif VerifiTools.type_matched(container, dict):
-            ik = pkt.data
-
-            if not VerifiTools.type_matched(ik, str):
-                self._replay(
-                    conn,
-                    self._gen_err_resp(
-                        SHM_RCODE_INNER_KEY_ERROR,
-                        f'invalid inner key: {ik}'
-                    )
-                )
-                return
-
-            container.pop(ik)
-            self._replay(conn, self._gen_ok_resp())
-            return
+            self._handle_obj_remove(pkt, conn)
         else:
-            self._replay(
-                conn,
-                self._gen_err_resp(
-                    SHM_RCODE_TYPE_ERROR,
-                    f'unsupported type: {pkt.type}'
-                )
-            )
-            return
+            self._reply_type_error(conn, f'unsupported type: {pkt.type}')
+
+    def _handle_arr_remove(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+        index = pkt.data
+
+        if VerifiTools.type_matched(index, int) and len(container) - 1 >= index:
+            container.pop(index)
+            self._reply(conn, self._gen_ok_resp())
+        else:
+            self._reply_idx_error(conn, f'invalid index: {index}')
+
+    def _handle_obj_remove(self, pkt, conn):
+        container = self._mem_pool.get(pkt.key)
+        ik = pkt.data
+
+        if VerifiTools.type_matched(ik, str):
+            container.pop(ik)
+            self._reply(conn, self._gen_ok_resp())
+        else:
+            self._reply_ik_error(conn, f'invalid inner key: {ik}')
 
     @__existence_confirmed
     def _handle_delete(self, pkt, conn):
         self._mem_pool.pop(pkt.key)
-        self._replay(conn, self._gen_ok_resp())
+        self._reply(conn, self._gen_ok_resp())
 
 
 # handles unexpected exceptions for SHMClient,

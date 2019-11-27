@@ -93,25 +93,37 @@ def test_init():
     shm.init(KEY_DICT, SHM_TYPE_OBJ)
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_read_all():
     # pass
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_get():
     # pass
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_set():
     # pass
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_put():
     # pass
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_remove():
     # pass
 
 
+# @__with_glb_conf
+# @__with_shm_server
 # def test_delete():
     # pass
