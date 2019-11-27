@@ -57,27 +57,19 @@ def __with_shm_server(func):
     return wrapper
 
 
-@__with_glb_conf
-def test_run_server():
-    server = SHMServer()
-
-    def term_shm_server(*_, **__):
-        server.shutdown()
-
-    def terminator(ppid):
-        time.sleep(2)
-        os.kill(ppid, signal.SIGUSR2)
-        sys.exit(0)
-
-    th = threading.Thread(target=terminator, args=(os.getpid(), ))
-    th.start()
-
-    signal.signal(signal.SIGUSR2, term_shm_server)
-    server.run()
-
-    # waiting for the terminator thread to send signal
-
-    assert not os.path.exists(GLBInfo.config.shm.socket)
+# Try to trigger an SHMError and validate its rcode
+#
+# :param func: a method of SHMClient
+# :param func_args: arguments of func
+# :param rcode: the expecting rcode in the SHMError
+# :param errmsg: the error message to output when the SHMError is not catched
+def __expect_err_rcode(func, func_args, rcode, errmsg):
+    try:
+        func(*func_args)
+    except SHMError as e:
+        assert e.args[1] == rcode
+    else:
+        raise Exception(errmsg)
 
 
 @__with_glb_conf
@@ -100,12 +92,15 @@ def test_init():
     shm.init(KEY_LIST, SHM_TYPE_ARY)
     shm.init(KEY_DICT, SHM_TYPE_OBJ)
 
-    try:
-        shm.init(KEY_STR,  SHM_TYPE_NC)
-    except SHMError as e:
-        assert e.args[1] == SHM_RCODE_KEY_CONFLICTION
-    else:
-        raise Exception('SHM_RCODE_KEY_CONFLICTION not catched')
+    __expect_err_rcode(
+        shm.init, ('K_ff', 0xff),
+        SHM_RCODE_TYPE_ERROR, 'SHM_RCODE_TYPE_ERROR not catched',
+    )
+
+    __expect_err_rcode(
+        shm.init, (KEY_STR, SHM_TYPE_NC),
+        SHM_RCODE_KEY_CONFLICTION, 'SHM_RCODE_KEY_CONFLICTION not catched',
+    )
 
 
 @__with_glb_conf
@@ -128,13 +123,21 @@ def test_nc():
         got = shm.read_all(key)
         assert got == data
 
+        __expect_err_rcode(
+            shm.put, (key, ['Something']),
+            SHM_RCODE_TYPE_ERROR, 'SHM_RCODE_TYPE_ERROR not catched',
+        )
+
+        __expect_err_rcode(
+            shm.remove, (key, 'Something'),
+            SHM_RCODE_TYPE_ERROR, 'SHM_RCODE_TYPE_ERROR not catched',
+        )
+
         shm.delete(key)
-        try:
-            shm.read_all(key)
-        except SHMError as e:
-            assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
-        else:
-            raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')
+        __expect_err_rcode(
+            shm.read_all, (key, ),
+            SHM_RCODE_NO_SUCH_KEY, 'SHM_RCODE_NO_SUCH_KEY not catched',
+        )
 
 
 @__with_glb_conf
@@ -155,13 +158,16 @@ def test_array():
     got = shm.read_all(KEY)
     assert got == ELEMENTS_REDUCED
 
+    __expect_err_rcode(
+        shm.set, (KEY, 'Something'),
+        SHM_RCODE_TYPE_ERROR, 'SHM_RCODE_TYPE_ERROR not catched',
+    )
+
     shm.delete(KEY)
-    try:
-        shm.read_all(KEY)
-    except SHMError as e:
-        assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
-    else:
-        raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')
+    __expect_err_rcode(
+        shm.read_all, (KEY, ),
+        SHM_RCODE_NO_SUCH_KEY, 'SHM_RCODE_NO_SUCH_KEY not catched',
+    )
 
 
 @__with_glb_conf
@@ -191,10 +197,13 @@ def test_object():
     got = shm.read_all(KEY)
     assert got == DATA_REDUCED
 
+    __expect_err_rcode(
+        shm.set, (KEY, 'Something'),
+        SHM_RCODE_TYPE_ERROR, 'SHM_RCODE_TYPE_ERROR not catched',
+    )
+
     shm.delete(KEY)
-    try:
-        shm.read_all(KEY)
-    except SHMError as e:
-        assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
-    else:
-        raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')
+    __expect_err_rcode(
+        shm.read_all, (KEY, ),
+        SHM_RCODE_NO_SUCH_KEY, 'SHM_RCODE_NO_SUCH_KEY not catched',
+    )

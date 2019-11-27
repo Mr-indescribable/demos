@@ -474,6 +474,9 @@ class SHMServer():
             dv = list()
         elif pkt.type == SHM_TYPE_OBJ:
             dv = dict()
+        else:
+            self._reply_type_error(conn, 'unsupported type')
+            return
 
         self._mem_pool.update( {pkt.key: dv} )
         self._mem_type.update( {pkt.key: pkt.type} )
@@ -493,7 +496,7 @@ class SHMServer():
         elif mem_type == SHM_TYPE_OBJ:
             self._handle_obj_get(pkt, conn)
         else:
-            self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
+            self._reply_type_error(conn, f'unsupported type: {pkt.type}')
 
     def _handle_arr_get(self, pkt, conn):
         container = self._mem_pool.get(pkt.key)
@@ -532,7 +535,7 @@ class SHMServer():
         elif mem_type == SHM_TYPE_OBJ:
             self._handle_obj_put(pkt, conn)
         else:
-            self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
+            self._reply_type_error(conn, f'unsupported type: {pkt.type}')
 
     def _handle_arr_put(self, pkt, conn):
         container = self._mem_pool.get(pkt.key)
