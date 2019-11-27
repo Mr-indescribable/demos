@@ -4,6 +4,7 @@ import time
 import signal
 import threading
 
+from nvld.exceptions import SHMError
 from nvld.components.shm import *
 from nvld.utils.od import ODict
 from nvld.glb import GLBInfo
@@ -99,38 +100,101 @@ def test_init():
     shm.init(KEY_LIST, SHM_TYPE_ARY)
     shm.init(KEY_DICT, SHM_TYPE_OBJ)
 
-
-@__with_glb_conf
-@__with_shm_server
-def test_read_all():
-    pass
-
-
-@__with_glb_conf
-@__with_shm_server
-def test_get():
-    pass
+    try:
+        shm.init(KEY_STR,  SHM_TYPE_NC)
+    except SHMError as e:
+        assert e.args[1] == SHM_RCODE_KEY_CONFLICTION
+    else:
+        raise Exception('SHM_RCODE_KEY_CONFLICTION not catched')
 
 
 @__with_glb_conf
 @__with_shm_server
-def test_set():
-    pass
+def test_nc():
+    TEST_NC_DATA = {
+        'K_STR':  ('D_STR', SHM_TYPE_NC),
+        'K_NUM':  (123, SHM_TYPE_NC),
+        'K_BOOL': (True, SHM_TYPE_NC),
+        'K_NULL': (None, SHM_TYPE_NC),
+    }
+
+    shm = SHMClient()
+
+    for key, dnt in TEST_NC_DATA.items():
+        data, type_ = dnt
+        shm.init(key, type_)
+        shm.set(key, data)
+
+        got = shm.read_all(key)
+        assert got == data
+
+        shm.delete(key)
+        try:
+            shm.read_all(key)
+        except SHMError as e:
+            assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
+        else:
+            raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')
 
 
 @__with_glb_conf
 @__with_shm_server
-def test_put():
-    pass
+def test_array():
+    KEY = 'K_ARR'
+    ELEMENTS = [1, 2, 'a', 'b', True, None]
+    ELEMENTS_REDUCED = [1, 'a', 'b', True, None]
+
+    shm = SHMClient()
+    shm.init(KEY, SHM_TYPE_ARY)
+    shm.put(KEY, ELEMENTS)
+
+    got = shm.read_all(KEY)
+    assert got == ELEMENTS
+
+    shm.remove(KEY, 1)
+    got = shm.read_all(KEY)
+    assert got == ELEMENTS_REDUCED
+
+    shm.delete(KEY)
+    try:
+        shm.read_all(KEY)
+    except SHMError as e:
+        assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
+    else:
+        raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')
 
 
 @__with_glb_conf
 @__with_shm_server
-def test_remove():
-    pass
+def test_object():
+    KEY = 'K_OBJ'
+    DATA = {
+        'a': 1,
+        'b': 2,
+        'c': True,
+        'd': None
+    }
+    DATA_REDUCED = {
+        'a': 1,
+        'c': True,
+        'd': None
+    }
 
+    shm = SHMClient()
+    shm.init(KEY, SHM_TYPE_OBJ)
+    shm.put(KEY, DATA)
 
-@__with_glb_conf
-@__with_shm_server
-def test_delete():
-    pass
+    got = shm.read_all(KEY)
+    assert got == DATA
+
+    shm.remove(KEY, 'b')
+    got = shm.read_all(KEY)
+    assert got == DATA_REDUCED
+
+    shm.delete(KEY)
+    try:
+        shm.read_all(KEY)
+    except SHMError as e:
+        assert e.args[1] == SHM_RCODE_NO_SUCH_KEY
+    else:
+        raise Exception('SHM_RCODE_NO_SUCH_KEY not catched')

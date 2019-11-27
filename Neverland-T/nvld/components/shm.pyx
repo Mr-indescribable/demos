@@ -279,6 +279,7 @@ class SHMServer():
         self._io_helper = NonblockingTCPIOHelper(self._poller)
 
         self._mem_pool = dict()
+        self._mem_type = dict()
         self._running = False
 
     def run(self):
@@ -475,6 +476,7 @@ class SHMServer():
             dv = dict()
 
         self._mem_pool.update( {pkt.key: dv} )
+        self._mem_type.update( {pkt.key: pkt.type} )
         self._reply(conn, self._gen_ok_resp())
 
     @__existence_confirmed
@@ -484,11 +486,11 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_get(self, pkt, conn):
-        container = self._mem_pool.get(pkt.key)
+        mem_type = self._mem_type.get(pkt.key)
 
-        if VerifiTools.type_matched(container, list):
+        if mem_type == SHM_TYPE_ARY:
             self._handle_arr_get(pkt, conn)
-        elif VerifiTools.type_matched(container, dict):
+        elif mem_type == SHM_TYPE_OBJ:
             self._handle_obj_get(pkt, conn)
         else:
             self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
@@ -513,7 +515,9 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_set(self, pkt, conn):
-        if pkt.type == SHM_TYPE_NC:
+        mem_type = self._mem_type.get(pkt.key)
+
+        if mem_type == SHM_TYPE_NC:
             self._mem_pool.update({pkt.key: pkt.data})
             self._reply(conn, self._gen_ok_resp())
         else:
@@ -521,11 +525,11 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_put(self, pkt, conn):
-        container = self._mem_pool.get(pkt.key)
+        mem_type = self._mem_type.get(pkt.key)
 
-        if VerifiTools.type_matched(container, list):
+        if mem_type == SHM_TYPE_ARY:
             self._handle_arr_put(pkt, conn)
-        elif VerifiTools.type_matched(container, dict):
+        elif mem_type == SHM_TYPE_OBJ:
             self._handle_obj_put(pkt, conn)
         else:
             self._reply_type_error(pkt, f'unsupported type: {pkt.type}')
@@ -552,11 +556,11 @@ class SHMServer():
 
     @__existence_confirmed
     def _handle_remove(self, pkt, conn):
-        container = self._mem_pool.get(pkt.key)
+        mem_type = self._mem_type.get(pkt.key)
 
-        if VerifiTools.type_matched(container, list):
+        if mem_type == SHM_TYPE_ARY:
             self._handle_arr_remove(pkt, conn)
-        elif VerifiTools.type_matched(container, dict):
+        elif mem_type == SHM_TYPE_OBJ:
             self._handle_obj_remove(pkt, conn)
         else:
             self._reply_type_error(conn, f'unsupported type: {pkt.type}')
@@ -584,6 +588,7 @@ class SHMServer():
     @__existence_confirmed
     def _handle_delete(self, pkt, conn):
         self._mem_pool.pop(pkt.key)
+        self._mem_type.pop(pkt.key)
         self._reply(conn, self._gen_ok_resp())
 
 
@@ -611,6 +616,11 @@ def __other_exceptions_handled(func):
     return wrapper
 
 
+# The client class of the SHM system
+#
+# Provides any functionality that the SHMServer supports,
+# and reports any exception as an SHMError with a message as its
+# first argument and the rcode as its sencond argument.
 class SHMClient():
 
     SOCK_TIMEOUT = 2
@@ -662,19 +672,20 @@ class SHMClient():
                 continue
 
         if not pkt_ready:
-            raise SHMError('No sufficient bytes received from SHMServer')
+            raise SHMError('No sufficient bytes received from SHMServer', None)
 
         try:
             j_resp = json.loads(pkt.decode())
             return ODict(**j_resp)
         except Exception:
-            raise SHMError('SHMServer does not respond correctly')
+            raise SHMError('SHMServer does not respond correctly', None)
 
     def _check_rcode(self, resp, op_name):
         if not resp.rt.rcode == SHM_RCODE_OK:
             raise SHMError(
                 f'Operation {op_name} failed, '
-                f'rcode: {resp.rt.rcode}, rmsg: {resp.rt.rmsg}'
+                f'rcode: {resp.rt.rcode}, rmsg: {resp.rt.rmsg}',
+                resp.rt.rcode,
             )
 
     @__other_exceptions_handled
@@ -686,7 +697,12 @@ class SHMClient():
     def read_all(self, key):
         resp = self._req(SHM_ACT_RA, key)
         self._check_rcode(resp, 'READ_ALL')
-        return resp.data
+        rdata = resp.data
+
+        if VerifiTools.type_matched(rdata, ODict):
+            rdata = rdata.__to_dict__()
+
+        return rdata
 
     @__other_exceptions_handled
     def get(self, key, data):
