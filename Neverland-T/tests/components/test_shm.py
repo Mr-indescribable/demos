@@ -69,7 +69,7 @@ def test_run_server():
     signal.signal(signal.SIGUSR2, term_shm_server)
     server.run()
 
-    assert not os.path.isfile(GLBInfo.config.shm.socket)
+    assert not os.path.exists(GLBInfo.config.shm.socket)
 
 
 @__with_glb_conf
