@@ -44,9 +44,14 @@ def __with_shm_server(func):
         th.start()
 
         try:
-            return func(*args, **kwargs)
+            func_r = func(*args, **kwargs)
         finally:
+            # We must wait for the server to shutdown,
+            # otherwise the socket file is occupied.
             server.shutdown()
+            th.join()
+
+        return func_r
 
     return wrapper
 
@@ -68,6 +73,8 @@ def test_run_server():
 
     signal.signal(signal.SIGUSR2, term_shm_server)
     server.run()
+
+    # waiting for the terminator thread to send signal
 
     assert not os.path.exists(GLBInfo.config.shm.socket)
 
@@ -93,37 +100,37 @@ def test_init():
     shm.init(KEY_DICT, SHM_TYPE_OBJ)
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_read_all():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_read_all():
+    pass
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_get():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_get():
+    pass
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_set():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_set():
+    pass
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_put():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_put():
+    pass
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_remove():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_remove():
+    pass
 
 
-# @__with_glb_conf
-# @__with_shm_server
-# def test_delete():
-    # pass
+@__with_glb_conf
+@__with_shm_server
+def test_delete():
+    pass

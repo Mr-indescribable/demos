@@ -330,6 +330,7 @@ class SHMServer():
     def _reply(self, conn, data):
         self._io_helper.append_data(conn, data)
 
+    # some shortcuts for error reporting
     def _reply_type_error(self, conn, msg):
         self._reply(conn, self._gen_err_resp(SHM_RCODE_TYPE_ERROR, msg))
 
@@ -612,7 +613,7 @@ def __other_exceptions_handled(func):
 
 class SHMClient():
 
-    SOCK_TIMEOUT = 1
+    SOCK_TIMEOUT = 2
     RECV_MAX_RETRY = 4
 
     def __init__(self):

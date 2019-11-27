@@ -11,7 +11,7 @@ class EpollPoller():
     EV_RDHUP = select.EPOLLRDHUP
 
     DEFAULT_EV = EV_IN | EV_RDHUP
-    DEFAULT_POLL_TIMEOUT = 4
+    DEFAULT_POLL_TIMEOUT = 2
 
     def __init__(self):
         self._fd_map = dict()
