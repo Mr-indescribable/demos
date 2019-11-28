@@ -9,7 +9,7 @@ from .utils.misc import get_localhost_ip
 from .proto.fmt import ComplexedFormat
 from .proto.fmt.tcp import (
     TCPHeaderFormat,
-    TCPDelimiterPktFormat,
+    TCPDelimiterFormat,
     TCPDataPktFormat,
     TCPConnCtrlPktFormat,
     TCPClstCtrlPktFormat,
@@ -30,7 +30,7 @@ def ginit_glb_pktfmt():
         raise RuntimeError('GLBInfo must be initialized first')
 
     TCPHeaderFormat.gen_fmt()
-    TCPDelimiterPktFormat.gen_fmt()
+    TCPDelimiterFormat.gen_fmt()
     TCPDataPktFormat.gen_fmt()
     TCPConnCtrlPktFormat.gen_fmt()
     TCPClstCtrlPktFormat.gen_fmt()
@@ -41,18 +41,18 @@ def ginit_glb_pktfmt():
 
     GLBPktFmt.tcp_data.combine_fmt(TCPHeaderFormat)
     GLBPktFmt.tcp_data.combine_fmt(TCPDataPktFormat)
-    GLBPktFmt.tcp_data.combine_fmt(TCPDelimiterPktFormat)
+    GLBPktFmt.tcp_data.combine_fmt(TCPDelimiterFormat)
 
     GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPHeaderFormat)
     GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPConnCtrlPktFormat)
-    GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPDelimiterPktFormat)
+    GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPDelimiterFormat)
 
     GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPHeaderFormat)
     GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPClstCtrlPktFormat)
-    GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPDelimiterPktFormat)
+    GLBPktFmt.tcp_clst_ctrl.combine_fmt(TCPDelimiterFormat)
 
     TCPHeaderFormat.sort_calculators()
-    TCPDelimiterPktFormat.sort_calculators()
+    TCPDelimiterFormat.sort_calculators()
     TCPDataPktFormat.sort_calculators()
     TCPConnCtrlPktFormat.sort_calculators()
     TCPClstCtrlPktFormat.sort_calculators()

@@ -88,7 +88,7 @@ class TCPHeaderFormat(BasePktFormat):
         }
 
 
-class TCPDelimiterPktFormat(BasePktFormat):
+class TCPDelimiterFormat(BasePktFormat):
 
     __type__ = None
 
@@ -113,6 +113,11 @@ class TCPDataPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
+            # indicates which TCP connection that the data belongs to
+            'channel_id': FieldDefinition(
+                              length = 4,
+                              type   = FieldTypes.STRUCT_U_INT,
+                          ),
             # just the data
             'data': FieldDefinition(
                         length = SpecialLength.TCP_EXCEPT_DELIM,
@@ -131,6 +136,12 @@ class TCPConnCtrlPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
+            # The channel ID assigned for the TCP connection
+            'channel_id': FieldDefinition(
+                              length = 4,
+                              type   = FieldTypes.STRUCT_U_INT,
+                          ),
+
             # An IPv4 socket address
             # this field should be set to all zero if IPv6 is in use
             'v4ip': FieldDefinition(
