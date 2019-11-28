@@ -1,3 +1,4 @@
+import time
 import errno
 import socket
 import logging
@@ -18,6 +19,14 @@ TCP_BLOCK_SIZE = 32768
 class TCPEff():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
+        # self._traiffic_*: variables for the statistics of traffic
+        self._traffic_total = 0
+
+        # the time span of the real-time traffic calculation (in seconds)
+        self._traffic_calc_span = 1.0  # TODO: should be configurable later
+        self._traffic_last_span_outset = time.time()
+        self._traffic_realtime = 0
+
         self._send_buf = b''
 
         self._sock = conn
@@ -36,6 +45,16 @@ class TCPEff():
         self._sock.close()
         self._sock = None
 
+    def _update_traffic_sum(self, data_len):
+        self._traffic_total += data_len
+
+        current = time.time()
+        if current >= self._traffic_last_span_outset + self._traffic_calc_span:
+            self._traffic_realtime = data_len
+            self._traffic_last_span_outset = current
+        else:
+            self._traffic_realtime += data_len
+
     def _send_blking(self, data=b''):
         # to be compatible with the non-blocking api, the zero length
         # data should be allowed here
@@ -46,6 +65,9 @@ class TCPEff():
             d2s = data
         else:
             d2s = self._cryptor.encrypt(data) if len(data) > 0 else b''
+
+        # blocking socket will send all data given
+        self._update_traffic_sum( len(d2s) )
 
         return self._sock.send(d2s)
 
@@ -79,6 +101,7 @@ class TCPEff():
         # The cursor moves forward by bt_sent bytes
         self._send_buf = self._send_buf[bt_sent:]
 
+        self._update_traffic_sum(bt_sent)
         return bt_sent
 
     # writes data into the socket and returns number of bytes that
@@ -92,10 +115,6 @@ class TCPEff():
     def append_data(self, data):
         self._send_buf += data
 
-    @property
-    def send_buf_len(self):
-        return len(self._send_buf)
-
     def update_cryptor(self, cryptor):
         if self.plain_mod:
             raise RuntimeError(
@@ -103,3 +122,23 @@ class TCPEff():
             )
 
         self._cryptor = cryptor
+
+    @property
+    def send_buf_len(self):
+        return len(self._send_buf)
+
+    @property
+    def traffic_send_total(self):
+        return self._traffic_total
+
+    @property
+    def traffic_send_1sec(self):
+        return self._traffic_realtime / self._traffic_calc_span
+
+    @property
+    def traffic_send_realtime(self):
+        return self._traffic_realtime
+
+    @property
+    def traffic_send_realtime_span(self):
+        return self._traffic_calc_span

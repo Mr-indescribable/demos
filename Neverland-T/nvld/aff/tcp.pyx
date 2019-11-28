@@ -1,3 +1,4 @@
+import time
 import errno
 import socket
 import logging
@@ -22,6 +23,14 @@ SO_ORIGINAL_DST = 80
 class TCPAff():
 
     def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
+        # self._traiffic_*: variables for the statistics of traffic
+        self._traffic_total = 0
+
+        # the time span of the real-time traffic calculation (in seconds)
+        self._traffic_calc_span = 1.0  # TODO: should be configurable later
+        self._traffic_last_span_outset = time.time()
+        self._traffic_realtime = 0
+
         # A register that stores an integer (or None) which means the size of
         # the next block incoming. This is shortcut for easily avoiding
         # parsing the length field for multiple times.
@@ -59,11 +68,23 @@ class TCPAff():
         self._sock.close()
         self._sock = None
 
+    def _update_traffic_sum(self, data_len):
+        self._traffic_total += data_len
+
+        current = time.time()
+        if current >= self._traffic_last_span_outset + self._traffic_calc_span:
+            self._traffic_realtime = data_len
+            self._traffic_last_span_outset = current
+        else:
+            self._traffic_realtime += data_len
+
     def _store_data(self, data):
         if self._plain_mod:
             self._raw_buf += data
         else:
             self._pln_buf += self._cryptor.decrypt(data)
+
+        self._update_traffic_sum( len(data) )
 
     def _recv_blking(self):
         data = self._sock.recv(TCP_RECV_SIZE)
@@ -105,17 +126,6 @@ class TCPAff():
 
         self._cryptor = cryptor
 
-    @property
-    def recv_buf_len(self):
-        if self._plain_mod:
-            return len(self._raw_buf)
-        else:
-            return len(self._pln_buf)
-
-    @property
-    def next_blk_size(self):
-        return self._next_blk_size
-
     def set_next_blk_size(self, blk_size):
         self._next_blk_size = blk_size
 
@@ -131,6 +141,33 @@ class TCPAff():
             self._pln_buf = self._pln_buf[length:]
 
         return data
+
+    @property
+    def recv_buf_len(self):
+        if self._plain_mod:
+            return len(self._raw_buf)
+        else:
+            return len(self._pln_buf)
+
+    @property
+    def next_blk_size(self):
+        return self._next_blk_size
+
+    @property
+    def traffic_recv_total(self):
+        return self._traffic_total
+
+    @property
+    def traffic_recv_1sec(self):
+        return self._traffic_realtime / self._traffic_calc_span
+
+    @property
+    def traffic_recv_realtime(self):
+        return self._traffic_realtime
+
+    @property
+    def traffic_recv_realtime_span(self):
+        return self._traffic_calc_span
 
 
 # A server afferent is a wrapper of a TCP Server socket

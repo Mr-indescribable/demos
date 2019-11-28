@@ -41,6 +41,15 @@ class FDXTCPConn():
         self._aff.update_cryptor(cryptor)
         self._eff.update_cryptor(cryptor)
 
+    def set_next_blk_size(self, blk_size):
+        self._aff.set_next_blk_size(blk_size)
+
+    def destroy(self):
+        self._conn.close()
+        self._sock = None
+        self._aff = None
+        self._err = None
+
     @property
     def recv_buf_len(self):
         return self._aff.recv_buf_len
@@ -53,11 +62,34 @@ class FDXTCPConn():
     def next_blk_size(self):
         return self._aff.next_blk_size
 
-    def set_next_blk_size(self, blk_size):
-        self._aff.set_next_blk_size(blk_size)
+    @property
+    def traffic_recv_total(self):
+        return self._aff.traffic_recv_total
 
-    def destroy(self):
-        self._conn.close()
-        self._sock = None
-        self._aff = None
-        self._err = None
+    @property
+    def traffic_recv_1sec(self):
+        return self._aff.traffic_recv_1sec
+
+    @property
+    def traffic_recv_realtime(self):
+        return self._aff.traffic_recv_realtime
+
+    @property
+    def traffic_recv_realtime_span(self):
+        return self._aff.traffic_recv_realtime_span
+
+    @property
+    def traffic_send_total(self):
+        return self._eff.traffic_send_total
+
+    @property
+    def traffic_send_1sec(self):
+        return self._eff.traffic_send_1sec
+
+    @property
+    def traffic_send_realtime(self):
+        return self._eff.traffic_send_realtime
+
+    @property
+    def traffic_send_realtime_span(self):
+        return self._eff.traffic_send_realtime_span
