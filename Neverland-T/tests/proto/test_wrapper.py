@@ -300,6 +300,7 @@ def test_make_n_parse_tcp_pkt():
         'type': PktTypes.DATA,
         'dest': ('127.0.0.1', 40000),
         'data': os.urandom(2000),
+        'channel_id': 1,
     }
     data_pkt = TCPPacket()
     data_pkt.proto = PktProto.TCP
@@ -311,6 +312,7 @@ def test_make_n_parse_tcp_pkt():
         'dest': ('127.0.0.1', 40000),
         'v4ip': ('127.0.0.1', 100),
         'v4': 1,
+        'channel_id': 2,
     }
     conn_ctrl_pkt = TCPPacket()
     conn_ctrl_pkt.proto = PktProto.TCP
