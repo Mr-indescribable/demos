@@ -113,6 +113,12 @@ class TCPDataPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
+            # a flag that marks whether this data packet is a pad of NLSwirl
+            'is_swirl_pad': FieldDefinition(
+                                length  = 1,
+                                type    = FieldTypes.STRUCT_U_CHAR,
+                                default = 0,
+                            ),
             # indicates which TCP connection that the data belongs to
             'channel_id': FieldDefinition(
                               length = 4,

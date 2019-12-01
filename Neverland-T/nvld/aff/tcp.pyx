@@ -31,6 +31,9 @@ class TCPAff():
         self._traffic_last_span_outset = time.time()
         self._traffic_realtime = 0
 
+        # The last time of handling I/O event
+        self._last_io_time = time.time()
+
         # A register that stores an integer (or None) which means the size of
         # the next block incoming. This is shortcut for easily avoiding
         # parsing the length field for multiple times.

@@ -27,6 +27,9 @@ class TCPEff():
         self._traffic_last_span_outset = time.time()
         self._traffic_realtime = 0
 
+        # The last time of handling I/O event
+        self._last_io_time = time.time()
+
         self._send_buf = b''
 
         self._sock = conn
