@@ -24,7 +24,29 @@ class TCPConnHelper():
             try:
                 sock.connect(socket_name)
             except OSError as e:
-                if errno_from_exception == errno.EINPROGRESS:
+                if errno_from_exception(e) == errno.EINPROGRESS:
+                    return sock
+                else:
+                    raise e
+
+    # Connects to a remote node and returns the socket
+    @classmethod
+    def conn_to_remote(cls, remote_sa, blocking=False, timeout=None):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        sock.settimeout(timeout)
+        sock.setblocking(blocking)
+
+        if blocking:
+            sock.connect(remote_sa)
+            return sock
+        else:
+            # same as above
+            try:
+                sock.connect(remote_sa)
+            except OSError as e:
+                if errno_from_exception(e) == errno.EINPROGRESS:
                     return sock
                 else:
                     raise e
