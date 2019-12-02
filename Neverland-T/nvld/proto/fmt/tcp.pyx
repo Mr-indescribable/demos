@@ -22,9 +22,8 @@ RESERVED_FIELD_VALUE  = b'\x00' * RESERVED_FIELD_LEN
 DELIMITER_FIELD_VALUE = b'\xff' * DELIMITER_FIELD_LEN
 
 
+# The format of the header of TCP packet
 class TCPHeaderFormat(BasePktFormat):
-
-    # The format of the header of TCP packet
 
     __type__ = None
 
@@ -103,22 +102,21 @@ class TCPDelimiterFormat(BasePktFormat):
         }
 
 
+# The format of data packets' body
 class TCPDataPktFormat(BasePktFormat):
-
-    ''' The format of data packets' body
-    '''
 
     __type__ = PktTypes.DATA
 
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            # a flag that marks whether this data packet is a pad of NLSwirl
-            'is_swirl_pad': FieldDefinition(
-                                length  = 1,
-                                type    = FieldTypes.STRUCT_U_CHAR,
-                                default = 0,
-                            ),
+            # a flag that marks whether this data packet is a pad of NLSwirl,
+            # in other words, a fake packet
+            'fake': FieldDefinition(
+                        length  = 1,
+                        type    = FieldTypes.STRUCT_U_CHAR,
+                        default = 0,
+                    ),
             # indicates which TCP connection that the data belongs to
             'channel_id': FieldDefinition(
                               length = 4,
@@ -132,50 +130,57 @@ class TCPDataPktFormat(BasePktFormat):
         }
 
 
+# The format of connection controlling packets' body
 class TCPConnCtrlPktFormat(BasePktFormat):
-
-    ''' The format of connection controlling packets' body
-    '''
 
     __type__ = PktTypes.CONN_CTRL
 
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
+            #An integer that marks what the sender wants to do
+            'transaction': FieldDefinition(
+                               length = 1,
+                               type   = FieldTypes.STRUCT_U_CHAR,
+                           ),
             # The channel ID assigned for the TCP connection
             'channel_id': FieldDefinition(
                               length = 4,
                               type   = FieldTypes.STRUCT_U_INT,
                           ),
-
-            # An IPv4 socket address
+            # A boolean in int type that indicates whether we are using IPv4
+            'is_v4': FieldDefinition(
+                         length  = 1,
+                         type    = FieldTypes.STRUCT_U_CHAR,
+                         default = 1,
+                     ),
+            # An IPv4 socket address used with REQ_CONNECT transaction,
             # this field should be set to all zero if IPv6 is in use
             'v4ip': FieldDefinition(
                         length  = 6,
                         type    = FieldTypes.STRUCT_IPV4_SA,
-                        default = b'\x00' * 6,
+                        default = ('0.0.0.0', 0),
                     ),
-            # An IPv6 socket address
-            # this fields should be set to all zero if IPv4 is in use
-            # This field is not in use now.
+            # An IPv6 socket address used with REQ_CONNECT transaction,
+            # this fields should be set to all zero if IPv4 is in use.
+            #
+            # Currnetly, it's not in use.
             'v6ip': FieldDefinition(
                         length  = 18,
                         type    = FieldTypes.PY_BYTES,
                         default = b'\x00' * 18,
                     ),
-            # A boolean in int type that indicates whether we are using IPv4
-            'v4': FieldDefinition(
-                      length  = 1,
-                      type    = FieldTypes.STRUCT_U_CHAR,
-                      default = 1,
-                  ),
+            # just the errno, mainly used with RPT_ERROR transaction
+            'errno': FieldDefinition(
+                         length  = 4,
+                         type    = FieldTypes.STRUCT_U_INT,
+                         default = 0,
+                     ),
         }
 
 
+# The format of cluster controlling packets' body
 class TCPClstCtrlPktFormat(BasePktFormat):
-
-    ''' The format of cluster controlling packets' body
-    '''
 
     __type__ = PktTypes.CLST_CTRL
 

@@ -62,3 +62,7 @@ class Info(Exception):
 # try again later 
 class TryAgain(Info):
     pass
+
+
+class TCPError(Exception):
+    pass

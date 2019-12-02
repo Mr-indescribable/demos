@@ -309,10 +309,11 @@ def test_make_n_parse_tcp_pkt():
 
     conn_ctrl_pkt_fields = {
         'type': PktTypes.CONN_CTRL,
+        'transaction': 1,
+        'channel_id': 2,
+        'is_v4': 1,
         'dest': ('127.0.0.1', 40000),
         'v4ip': ('127.0.0.1', 100),
-        'v4': 1,
-        'channel_id': 2,
     }
     conn_ctrl_pkt = TCPPacket()
     conn_ctrl_pkt.proto = PktProto.TCP
