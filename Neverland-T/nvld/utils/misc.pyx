@@ -93,3 +93,7 @@ def errno_from_exception(e):
         return e.args[0]
     else:
         return None
+
+
+def errno_from_socket(sock):
+    return sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)

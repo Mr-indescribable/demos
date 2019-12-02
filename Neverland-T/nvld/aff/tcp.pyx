@@ -1,9 +1,10 @@
+import os
 import time
 import errno
 import socket
 import logging
 
-from ..utils.misc import errno_from_exception
+from ..utils.misc import errno_from_exception, errno_from_socket
 from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
 
 
@@ -50,9 +51,9 @@ class TCPAff():
         # empty? Imagine that there could be a day, that we are not going to
         # encrypt/decrypt data at the time we receive it. Well, maybe?
 
-        self._sock = conn
         self.src = src
         self._plain_mod = plain_mod
+        self._sock = conn
 
         # An optional crypto.Cryptor object,
         # it will be used in encryption or decryption if provided.
@@ -144,6 +145,12 @@ class TCPAff():
             self._pln_buf = self._pln_buf[length:]
 
         return data
+
+    def get_socket_errno(self):
+        return errno_from_socket(self._sock)
+
+    def get_socket_errmsg(self):
+        return os.strerror( self.get_socket_errno() )
 
     @property
     def recv_buf_len(self):

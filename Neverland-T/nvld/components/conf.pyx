@@ -46,6 +46,10 @@ class ConfigMgr():
         if net.ipv6 is True:
             raise ConfigError('IPv6 is not supported yet.')
 
+        if not VerifiTools.type_matched(net.tcp.conn_max_retry, int):
+            raise ConfigError('net.tcp.conn_max_retry must be an integer')
+        if net.tcp.conn_max_retry < 0:
+            raise ConfigError('net.tcp.conn_max_retry must not be negative')
         if not VerifiTools.type_matched(net.tcp.aff_listen_addr, str):
             raise ConfigError('net.tcp.aff_listen_addr must be a string')
         if not VerifiTools.type_matched(net.tcp.aff_listen_port, int):

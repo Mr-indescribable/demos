@@ -71,7 +71,7 @@ class NonblockingTCPIOHelper():
 
     def __init__(self, poller):
         self._poller = poller
-        self._ev_ro = self._poller.EV_IN | self._poller.EV_RDHUP
+        self._ev_ro = self._poller.DEFAULT_EV
         self._ev_rw = self._ev_ro | self._poller.EV_OUT
 
     # receives data from an afferent and keep it in afferent's buffer

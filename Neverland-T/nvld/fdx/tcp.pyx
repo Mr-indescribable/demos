@@ -1,5 +1,8 @@
+import os
+
 from ..aff.tcp import TCPAff
 from ..eff.tcp import TCPEff
+from ..utils.misc import errno_from_socket
 
 
 # A TCP connection wrapper that integrates TCPAff and TCPEff.
@@ -17,7 +20,7 @@ class FDXTCPConn():
         self._plain_mod = plain_mod
         self._cryptor = cryptor
         self._blocking = blocking
-        self.fd = conn.fileno()
+        self._fd = conn.fileno()
 
         self._aff = TCPAff(conn, src, plain_mod, cryptor, blocking)
         self._eff = TCPEff(conn, src, plain_mod, cryptor, blocking)
@@ -49,6 +52,16 @@ class FDXTCPConn():
         self._sock = None
         self._aff = None
         self._err = None
+
+    def get_socket_errno(self):
+        return errno_from_socket(self._conn)
+
+    def get_socket_errmsg(self):
+        return os.strerror( self.get_socket_errno() )
+
+    @property
+    def fd(self):
+        return self._fd
 
     @property
     def recv_buf_len(self):

@@ -1,9 +1,10 @@
+import os
 import time
 import errno
 import socket
 import logging
 
-from ..utils.misc import errno_from_exception
+from ..utils.misc import errno_from_exception, errno_from_socket
 
 
 logger = logging.getLogger('Main')
@@ -32,9 +33,9 @@ class TCPEff():
 
         self._send_buf = b''
 
-        self._sock = conn
         self.src = src
-        self.plain_mod = plain_mod
+        self._plain_mod = plain_mod
+        self._sock = conn
         self._cryptor = cryptor
         self._blocking = blocking
 
@@ -64,7 +65,7 @@ class TCPEff():
         if len(data) == 0:
             return
 
-        if self.plain_mod:
+        if self._plain_mod:
             d2s = data
         else:
             d2s = self._cryptor.encrypt(data) if len(data) > 0 else b''
@@ -75,7 +76,7 @@ class TCPEff():
         return self._sock.send(d2s)
 
     def _send_nblking(self, data=b''):
-        if self.plain_mod:
+        if self._plain_mod:
             pending = data
         else:
             pending = self._cryptor.encrypt(data) if len(data) > 0 else b''
@@ -119,12 +120,18 @@ class TCPEff():
         self._send_buf += data
 
     def update_cryptor(self, cryptor):
-        if self.plain_mod:
+        if self._plain_mod:
             raise RuntimeError(
                 "TCPAff cannot be changed from plain mode to encrypting mode"
             )
 
         self._cryptor = cryptor
+
+    def get_socket_errno(self):
+        return errno_from_socket(self._sock)
+
+    def get_socket_errmsg(self):
+        return os.strerror( self.get_socket_errno() )
 
     @property
     def send_buf_len(self):

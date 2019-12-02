@@ -8,9 +8,10 @@ class EpollPoller():
     EV_IN    = select.EPOLLIN
     EV_OUT   = select.EPOLLOUT
     EV_ERR   = select.EPOLLERR
+    EV_HUP   = select.EPOLLHUP
     EV_RDHUP = select.EPOLLRDHUP
 
-    DEFAULT_EV = EV_IN | EV_RDHUP
+    DEFAULT_EV = EV_IN | EV_ERR | EV_HUP | EV_RDHUP
     DEFAULT_POLL_TIMEOUT = 2
 
     def __init__(self):
