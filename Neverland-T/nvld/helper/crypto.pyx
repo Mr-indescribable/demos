@@ -1,0 +1,3 @@
+class CryptoHelper():
+
+    pass

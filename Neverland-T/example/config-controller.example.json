@@ -26,7 +26,8 @@
 
 		"crypto": {
 			"password": "a SUPER SUPER LONG AND VERY VERY INDESCRIBABLE pASSw0rD",
-			"cipher": "kc-aes-256-gcm",
+			"stream_cipher": "aes-256-gcm",
+			"dgram_cipher": "kc-aes-256-gcm",
 			"salt_len": 8,
 			"iv_duration_range": [1000, 2000]
 		}

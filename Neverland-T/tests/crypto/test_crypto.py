@@ -4,9 +4,7 @@ from nvld.glb import GLBInfo, GLBComponent
 from nvld.components.conf import JsonConfig
 from nvld.components.div import DefaultIVMgr
 from nvld.utils.od import ODict
-from nvld.crypto import Cryptor
-from nvld.crypto.openssl import OpenSSLCryptor
-from nvld.crypto.kc.aead.gcm import GCMKernelCryptor
+from nvld.crypto import StreamCryptor, DGramCryptor, ALL_CIPHERS
 
 
 div_mgr = DefaultIVMgr(iv_len=12)
@@ -19,7 +17,8 @@ crypto_config_dict = {
         'identification': 'testing-node',
         'crypto': {
             'password': 'The_P@5sw0RD',
-            'cipher': None,  # should be overridden later
+            'stream_cipher': None,  # should be overridden later
+            'dgram_cipher': None,
             'salt_len': 8,
             'iv_len': 12,
             'iv_duration_range': [1000, 2000],
@@ -38,36 +37,30 @@ def _update_config(**kwargs):
 
 # We must lock up the global config in all these tests,
 # otherwise we'll face race conditions.
-def test_openssl(gl_config):
+def test_all(gl_config):
     try:
         gl_config.acquire()
 
-        for cipher_name in OpenSSLCryptor.supported_ciphers:
-            _update_config(cipher=cipher_name)
-            _test_cipher()
-    finally:
-        gl_config.release()
-
-
-def test_kc_gcm(gl_config):
-    try:
-        gl_config.acquire()
-
-        for cipher_name in GCMKernelCryptor.supported_ciphers:
-            _update_config(cipher=cipher_name)
+        for cipher_name in ALL_CIPHERS:
+            _update_config(
+                stream_cipher=cipher_name,
+                dgram_cipher=cipher_name,
+            )
             _test_cipher()
     finally:
         gl_config.release()
 
 
 def _test_cipher():
-    cryptor = Cryptor()
+    stream_cryptor = StreamCryptor()
+    dgram_cryptor = DGramCryptor()
 
-    for _ in range(1024):
-        src_data = os.urandom(65536)
-        encrypted_data = cryptor.encrypt(src_data)
-        decrypted_data = cryptor.decrypt(encrypted_data)
+    for cryptor in (stream_cryptor, dgram_cryptor):
+        for _ in range(256):
+            src_data = os.urandom(65536)
+            encrypted_data = cryptor.encrypt(src_data)
+            decrypted_data = cryptor.decrypt(encrypted_data)
 
-        assert src_data != encrypted_data
-        assert src_data not in encrypted_data
-        assert src_data == decrypted_data
+            assert src_data != encrypted_data
+            assert src_data not in encrypted_data
+            assert src_data == decrypted_data
