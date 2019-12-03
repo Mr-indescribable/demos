@@ -14,10 +14,8 @@ from ._libcrypto cimport (
 )
 
 
+# The wrapper class for libcrypto.so.1.1
 cdef class OpenSSLCryptor:
-
-    ''' The wrapper class for libcrypto.so.1.1
-    '''
 
     _CINIT = True
 

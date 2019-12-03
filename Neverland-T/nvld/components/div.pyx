@@ -7,8 +7,8 @@ from ..glb import GLBInfo
 # This class is used to generate or load IV set of the Neverland cluster.
 class DefaultIVMgr():
 
-    def __init__(self, iv_len=32):
-        self._iv_len = iv_len
+    def __init__(self, iv_len=None):
+        self._iv_len = iv_len or GLBInfo.config.net.crypto.iv_len
 
     def gen(self, length):
         return os.urandom(length)
@@ -27,3 +27,6 @@ class DefaultIVMgr():
 
     def random_div(self):
         return random.choice(GLBInfo.div_list)
+
+    def get_all(self):
+        return GLBInfo.div_list

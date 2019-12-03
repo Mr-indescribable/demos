@@ -6,10 +6,8 @@ from ...exceptions import ArgumentError
 from ..mode import Modes
 
 
-''' The kernel crypto module
-
-By default, Linux kernel >= 4.9 is required
-'''
+# The kernel crypto module
+# By default, Linux kernel >= 4.9 is required
 
 
 _kernel_version_checked = False
@@ -19,10 +17,8 @@ _kernel_version_checked = False
 KC_DECRYPTION_FAILED = 74
 
 
+# The base class of kernel cryptors
 class BaseKernelCryptor():
-
-    ''' The base class of kernel cryptors
-    '''
 
     _CINIT = False
 
@@ -70,29 +66,27 @@ class BaseKernelCryptor():
         self._key = key
         self._iv = iv
 
-        self.prepare()
+        self._set_attributes()
         self.checkup()
 
         self.init_cryptor()
 
-    def prepare(self):
-        ''' prepare attributes before checking and initializing the cryptor
+    # prepare attributes before checking and initializing the cryptor
+    #
+    # The following attributes of the instance should get assigned here:
+    #     self._key_len
+    #     self._iv_len
+    #     self._kc_cipher_type
+    #     self._kc_cipher_name
+    #     self._aead
+    #
+    #     attributes for aead:
+    #         self._aad_len
+    def _set_attributes(self):
+        pass
 
-        The following attributes of the instance should get assigned here:
-            self._key_len
-            self._iv_len
-            self._kc_cipher_type
-            self._kc_cipher_name
-            self._aead
-
-            attributes for aead:
-                self._aad_len
-        '''
-
+    # put verifications here
     def checkup(self):
-        ''' put verifications here
-        '''
-
         global _kernel_version_checked
 
         if not _kernel_version_checked:
@@ -119,10 +113,8 @@ class BaseKernelCryptor():
         if self._kc_cipher_name is None:
             raise RuntimeError(f'{cls_name}._kc_cipher_name is None')
 
+    # initialization of the cryptor instance
     def init_cryptor(self):
-        ''' initialization of the cryptor instance
-        '''
-
         if self._mode == Modes.ENCRYPTING:
             self._op = socket.ALG_OP_ENCRYPT
         elif self._mode == Modes.DECRYPTING:
@@ -151,31 +143,27 @@ class BaseKernelCryptor():
 
         return alg_sock
 
+    # do encryption or decryption
     def update(self, data):
-        ''' do encryption or decryption
-        '''
-
         raise NotImplementedError()
 
     def change_iv(self, iv):
         self._iv = iv
 
+    # clean/close the cryptor and release resources
     def clean(self):
-        ''' clean/close the cryptor and release resources
-        '''
-
         if hasattr(self, 'alg_conn'):
             self.alg_conn.close()
 
         if hasattr(self, 'alg_sock'):
             self.alg_sock.close()
 
+    # reset the cryptor
+    #
+    # Nothing needs to be done here.
+    # This method is reserved for the compatibility (with OpenSSL).
     def reset(self):
-        ''' reset the cryptor
-
-        Nothing needs to be done here.
-        This method is reserved for the compatibility (with OpenSSL).
-        '''
+        pass
 
     def __del__(self):
         self.clean()

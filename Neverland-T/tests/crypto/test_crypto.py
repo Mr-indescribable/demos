@@ -9,7 +9,7 @@ from nvld.crypto.openssl import OpenSSLCryptor
 from nvld.crypto.kc.aead.gcm import GCMKernelCryptor
 
 
-div_mgr = DefaultIVMgr()
+div_mgr = DefaultIVMgr(iv_len=12)
 div_mgr.load( os.urandom(32 * 12) )
 GLBComponent.div_mgr = div_mgr
 

@@ -8,15 +8,14 @@ from ...mode import Modes
 from ..base import BaseKernelCryptor, KC_DECRYPTION_FAILED
 
 
-''' The KC GCM Crypto Module
-
-Supported algorithms:
-    kc-aes-128-gcm
-    kc-aes-192-gcm
-    kc-aes-256-gcm
-
-Linux kernel >= 4.9 is required
-'''
+# The KC GCM Crypto Module
+#
+# Supported algorithms:
+#     kc-aes-128-gcm
+#     kc-aes-192-gcm
+#     kc-aes-256-gcm
+#
+# Linux kernel >= 4.9 is required
 
 
 # According to the GCM specification,
@@ -30,10 +29,8 @@ AAD_LENGTH = 16
 ICV_LENGTH = 16
 
 
+# The GCM Kernel Cryptor
 class GCMKernelCryptor(BaseKernelCryptor):
-
-    ''' The GCM Kernel Cryptor
-    '''
 
     supported_ciphers = [
         'kc-aes-128-gcm',
@@ -53,7 +50,7 @@ class GCMKernelCryptor(BaseKernelCryptor):
         'kc-aes-256-gcm': GCM_IV_LENGTH,
     }
 
-    def prepare(self):
+    def _set_attributes(self):
         self._key_len = self.key_len_map.get(self._cipher_name)
         self._iv_len = GCM_IV_LENGTH
         self._kc_cipher_type = 'aead'
@@ -63,10 +60,8 @@ class GCMKernelCryptor(BaseKernelCryptor):
         self._aad_len = AAD_LENGTH
         self._icv_len = ICV_LENGTH
 
+    # do encryption or decryption
     def update(self, data):
-        ''' do encryption or decryption
-        '''
-
         if self._mode == Modes.ENCRYPTING:
             aad = os.urandom(self._aad_len)
             msg = aad + data
