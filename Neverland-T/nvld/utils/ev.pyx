@@ -10,7 +10,7 @@ class DisposableEvent():
         self.__lk.acquire()
         self.__used = False
 
-    def ready(self):
+    def trigger(self):
         if not self.__used:
             self.__lk.release()
             self.__used = True

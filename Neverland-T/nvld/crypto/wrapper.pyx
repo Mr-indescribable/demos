@@ -9,6 +9,7 @@ from ..glb import GLBInfo, GLBComponent
 
 
 __all__ = [
+    'IV_LEN_MAP',
     'ALL_CIPHERS',
     'OPENSSL_CIPHERS',
     'KC_AEAD_CIPHERS',
@@ -35,6 +36,11 @@ SUPPORTED_CIPHERS.update(OPENSSL_CIPHERS)
 SUPPORTED_CIPHERS.update(KC_AEAD_CIPHERS)
 
 
+IV_LEN_MAP = dict()
+IV_LEN_MAP.update(OpenSSLCryptor.iv_len_map)
+IV_LEN_MAP.update(GCMKernelCryptor.iv_len_map)
+
+
 ALL_CIPHERS = list(SUPPORTED_CIPHERS.keys())
 
 
@@ -47,18 +53,18 @@ class Cryptor():
     def __init__(
         self,
         cipher_name,
+        iv,
         key=None,
-        iv=None,
         attribution=None,
         stream_mod=False,
     ):
         # Constructor
         #
         # :param cipher_name: pick a cipher name from ALL_CIPHERS
-        # :param key: optional, if this argument is not given, then the default
-        #             key derived by neverland.utils.HashTools.hkdf will be used
         # :param iv: optional, if this argument is not given, then the default
         #            IV derived by neverland.utils.HashTools.hdivdf will be used
+        # :param key: optional, if this argument is not given, then the default
+        #             key derived by neverland.utils.HashTools.hkdf will be used
         # :param attribution: a tag about which remote node that this cryptor
         #                     belongs to.
         # :param stream_mod: if is argument is False, then the Cryptor will
@@ -77,8 +83,14 @@ class Cryptor():
         self._key_len = self._cipher_cls.key_len_map[self._cipher_name]
         self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]
 
+        self._iv = iv
+        if self._iv_len != len(self._iv):
+            raise RuntimeError(
+                f'IV length error, '
+                f'expected: {self._iv_len}, got: {len(self._iv)}'
+            )
+
         self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
-        self._iv = iv or GLBComponent.div_mgr.random_div()
 
         self._key = self._key[:self._key_len]
         self._iv = self._iv[:self._iv_len]
@@ -149,6 +161,7 @@ class StreamCryptor(Cryptor):
         attribution=None,
     ):
         cipher = GLBInfo.config.net.crypto.stream_cipher
+        iv = iv or GLBComponent.div_mgr.random_stmc_div()
         Cryptor.__init__(self, cipher, key, iv, attribution, stream_mod=True)
 
 
@@ -166,4 +179,5 @@ class DGramCryptor(Cryptor):
         attribution=None,
     ):
         cipher = GLBInfo.config.net.crypto.dgram_cipher
+        iv = iv or GLBComponent.div_mgr.random_dgmc_div()
         Cryptor.__init__(self, cipher, key, iv, attribution, stream_mod=False)

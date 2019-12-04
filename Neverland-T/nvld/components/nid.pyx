@@ -2,9 +2,11 @@ from cython.operator cimport dereference as deref
 
 import os
 
+from ..glb import GLBInfo
 from ..exceptions import NIDError
 from .div import DefaultIVMgr
 from .conf import ConfigMgr
+from ..crypto import IV_LEN_MAP
 
 
 # NIDMgr is a tool to generate or load .nid files.
@@ -23,10 +25,8 @@ cdef class NIDMgr():
         object _div_mgr
         object _cfg_mgr
 
-    def __cinit__(self, iv_len=32):
-        self._iv_len = iv_len
-
-        self._div_mgr = DefaultIVMgr(iv_len)
+    def __cinit__(self):
+        self._div_mgr = DefaultIVMgr()
         self._cfg_mgr = ConfigMgr()
 
     cdef unsigned char __bc_shift(
@@ -236,5 +236,12 @@ cdef class NIDMgr():
 
         div_data, conf_data = self.parse_nid_data(nid_data)
 
-        self._div_mgr.load(div_data)
         self._cfg_mgr.load(conf_data.decode())
+
+        stmc_iv_len = IV_LEN_MAP.get(GLBInfo.config.net.crypto.stream_cipher)
+        self._div_mgr.set_iv_len(stmc_iv_len)
+        self._div_mgr.load_as_stmc_iv(div_data)
+
+        dgmc_iv_len = IV_LEN_MAP.get(GLBInfo.config.net.crypto.dgram_cipher)
+        self._div_mgr.set_iv_len(dgmc_iv_len)
+        self._div_mgr.load_as_dgmc_iv(div_data)

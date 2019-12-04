@@ -54,7 +54,7 @@ class NLSwirl():
 
         self._send_buf = b''
         self._send_buf_lk = Lock()
-        self._pkt_buffer = []  # A receive buffer that stores packets
+        self._pkt_buffer = []   # A receive buffer that stores packets
 
         self._fds = []          # file descriptors
         self._conn_map = {}     # fd-to-conn mapping
@@ -66,6 +66,7 @@ class NLSwirl():
         # An event for the Filler to wait, the filler should not
         # start filling the channel until receiving this event.
         self._ready_ev = DisposableEvent()
+        self._ready_ev_triggered = False
 
     def _connect_remote(self):
         try:
@@ -97,22 +98,25 @@ class NLSwirl():
             self._conn_lk_map.pop(fd)
             self._conn_st_map.pop(fd)
 
-    def _new_conn(self):
-        conn = self._connect_remote()
+    def _add_conn(self, conn, state):
         fd = conn.fd
         lock = Lock()
 
         with lock:
             self._conn_lk_map.update( {fd: lock} )
-            self._conn_st_map.update( {fd: NLSConnState.CONNECTING} )
+            self._conn_st_map.update( {fd: state} )
             self._conn_map.update( {fd: conn} )
             self._fds.append(fd)
 
             # poll with EPOLLOUT event will notice us that the connection
             # is ready, and then, we turn it to read only after we are noticed
+            # (if there is no data to send)
             self._poller.register(fd, ev=self._evs_out, obj=self)
 
-        return fd
+    def _new_conn(self):
+        conn = self._connect_remote()
+        self._add_conn(conn, NLSConnState.CONNECTING)
+        return conn.fd
 
     def _reconnect(self):
         fd = self._new_conn()
@@ -122,6 +126,10 @@ class NLSwirl():
     def _on_connected(self, fd):
         self._conn_st_map[fd] = NLSConnState.CONNECTED
         self._avai_conns += 1
+
+        if not self._ready_ev_triggered:
+            self._ready_ev.trigger()
+            self._ready_ev_triggered = True
 
     # makes connection with other node
     def build_channel(self):
@@ -135,6 +143,14 @@ class NLSwirl():
 
             with lock:
                 self._remove_conn(fd)
+
+    # adds a connection into the channel
+    # used on the connection-accepting side
+    #
+    # :param conn: an instance of FDXTCPConn class
+    # :param state: current state of the connection, choose from NLSConnState
+    def add_conn(self, conn, state):
+        self._add_conn(conn, state)
 
     # adds data into self._send_buf
     def append_data(self, data):
@@ -250,5 +266,9 @@ class NLSChannelFiller():
     def __init__(self, swirl):
         self._swirl = swirl
 
-    def run(self):
+    # generates fake data
+    def _gen_fdata(self, swirl):
         pass
+
+    def run(self):
+        self._swirl._ready_ev.wait()

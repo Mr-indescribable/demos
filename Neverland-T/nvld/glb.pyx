@@ -47,7 +47,9 @@ class GLBInfo:
     _INITED = False
 
     config = None
-    div_list = None
+
+    stmc_div_list = None  # iv set for StreamCryptor
+    dgmc_div_list = None  # iv set for DGramCryptor
 
     local_ip = None
 

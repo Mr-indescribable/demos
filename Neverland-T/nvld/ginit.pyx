@@ -3,8 +3,9 @@
 
 import logging
 
-from .glb import GLBPktFmt, GLBInfo
+from .glb import GLBPktFmt, GLBInfo, GLBComponent
 from .components.nid import NIDMgr
+from .components.div import DefaultIVMgr
 from .utils.misc import get_localhost_ip
 from .proto.fmt import ComplexedFormat
 from .proto.fmt.tcp import (
@@ -24,10 +25,10 @@ def ginit_glb_pktfmt():
         logger.error('multiple times of initialization invoked on GLBInfo')
         return
 
-    GLBPktFmt._INITED = True
-
     if not GLBInfo._INITED:
         raise RuntimeError('GLBInfo must be initialized first')
+
+    GLBPktFmt._INITED = True
 
     TCPHeaderFormat.gen_fmt()
     TCPDelimiterFormat.gen_fmt()
@@ -78,3 +79,18 @@ def ginit_glb_info(args):
     GLBInfo.svr_udp_port = GLBInfo.config.net.udp.aff_listen_port
     GLBInfo.svr_tcp_sa   = (GLBInfo.local_ip, GLBInfo.svr_tcp_port)
     GLBInfo.svr_udp_sa   = (GLBInfo.local_ip, GLBInfo.svr_udp_port)
+
+
+def ginit_glb_comp():
+    if GLBComponent._INITED:
+        logger.error('multiple times of initialization invoked on GLBComponent')
+        return
+
+    if not GLBInfo._INITED:
+        raise RuntimeError('GLBInfo must be initialized first')
+
+    GLBComponent._INITED = True
+
+    GLBComponent.div_mgr = DefaultIVMgr()
+    # GLBComponent.id_generator = 
+    # GLBComponent.main_tcp_aff
