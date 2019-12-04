@@ -9,7 +9,7 @@ from nvld.ginit import ginit_glb_pktfmt
 from nvld.utils.od import ODict
 from nvld.pkt.general import PktTypes, FieldTypes, PktProto
 from nvld.pkt.tcp import TCPPacket
-from nvld.proto.wrapper import PacketWrapper
+from nvld.proto.wrapper import TCPPacketWrapper
 from nvld.components.conf import JsonConfig
 from nvld.components.idg import IDGenerator
 
@@ -50,7 +50,7 @@ def __with_globals(func):
             gl_config.acquire()
 
             _ginit()
-            packet_wrapper = PacketWrapper()
+            packet_wrapper = TCPPacketWrapper()
 
             return func(*args, **kwargs)
         finally:

@@ -1,12 +1,16 @@
 import os
+import random
 from threading import Lock
 
 from ..glb import GLBInfo
+from ..pkt.tcp import TCPPacket
+from ..pkt.general import PktTypes, PktProto
 from ..utils.ev import DisposableEvent
 from ..utils.enumeration import MetaEnum
 from ..utils.misc import errno_from_exception
 from ..fdx.tcp import FDXTCPConn
 from ..exceptions import TCPError, TryAgain
+from ..helper.pkt import TCPPacketHelper
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
     TCPConnHelper,
@@ -39,10 +43,12 @@ class NLSwirl():
     #
     # :param remote: the socket address of a remote node to communicate
     # :param conn_cnt: the quantity of TCP connections in the channel
+    # :param bandwidth: the bandwidth of the channel, bytes per sec
     # :param poller: an instance of the event poller which is in use
-    def __init__(self, remote, conn_cnt, poller):
+    def __init__(self, remote, conn_cnt, bandwidth, poller):
         self._remote = remote
         self._conn_cnt = conn_cnt
+        self._bandwidth = bandwidth
         self._poller = poller
         self._io_helper = NonblockingTCPIOHelper(self._poller)
         self._conn_max_retry = GLBInfo.config.net.tcp.conn_max_retry
@@ -62,6 +68,7 @@ class NLSwirl():
         self._conn_st_map = {}  # fd-to-state mapping
         self._conn_retried = 0  # retried times of reconnecting
         self._avai_conns = 0    # currently available connections
+        self._avai_fds = []     # currently available fds
 
         # An event for the Filler to wait, the filler should not
         # start filling the channel until receiving this event.
@@ -98,6 +105,9 @@ class NLSwirl():
             self._conn_lk_map.pop(fd)
             self._conn_st_map.pop(fd)
 
+            if fd in self._avai_fds:
+                self._avai_fds.remove(fd)
+
     def _add_conn(self, conn, state):
         fd = conn.fd
         lock = Lock()
@@ -125,6 +135,7 @@ class NLSwirl():
 
     def _on_connected(self, fd):
         self._conn_st_map[fd] = NLSConnState.CONNECTED
+        self._avai_fds.append(fd)
         self._avai_conns += 1
 
         if not self._ready_ev_triggered:
@@ -265,10 +276,36 @@ class NLSChannelFiller():
 
     def __init__(self, swirl):
         self._swirl = swirl
+        self._bandwidth = self._swirl._bandwidth
+
+        self._traffic_calc_span = GLBInfo.config.net.traffic.calc_span
+
+        # rtbw == realtime bandwidth
+        # means to be fit with aff/eff's realtime bandwidth calculation
+        self._traffic_rtbw = self._bandwidth * self._traffic_calc_span
+
+        # fd == fake packet
+        self.fp_fields = {
+            'type': PktTypes.DATA,
+            'dest': ('0.0.0.0', 0),
+            'channel_id': 0,
+            'fake': 1,
+            'data': None,
+        }
 
     # generates fake data
-    def _gen_fdata(self, swirl):
-        pass
+    def _gen_fdata(self, length):
+        self.fp_fields.update(data=os.urandom(length))
+        pkt = TCPPacket(fields=self.fp_fields)
+        return TCPPacketHelper.pkt_2_bytes(pkt)
+
+    def _choose_conn(self):
+        fds = self._swirl._avai_fds
+        if len(fds) == 0:
+            raise TryAgain()
+
+        fd = random.choice(fds)
+        return self._swirl._conn_map.get(fd)
 
     def run(self):
         self._swirl._ready_ev.wait()

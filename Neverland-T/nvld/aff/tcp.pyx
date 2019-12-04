@@ -4,6 +4,7 @@ import errno
 import socket
 import logging
 
+from ..glb import GLBInfo
 from ..utils.misc import errno_from_exception, errno_from_socket
 from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
 
@@ -28,7 +29,7 @@ class TCPAff():
         self._traffic_total = 0
 
         # the time span of the real-time traffic calculation (in seconds)
-        self._traffic_calc_span = 1.0  # TODO: should be configurable later
+        self._traffic_calc_span = GLBInfo.config.net.traffic.calc_span
         self._traffic_last_span_outset = time.time()
         self._traffic_realtime = 0
 

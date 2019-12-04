@@ -6,7 +6,9 @@ import logging
 from .glb import GLBPktFmt, GLBInfo, GLBComponent
 from .components.nid import NIDMgr
 from .components.div import DefaultIVMgr
+from .components.idg import IDGenerator
 from .utils.misc import get_localhost_ip
+from .proto.wrapper import TCPPacketWrapper
 from .proto.fmt import ComplexedFormat
 from .proto.fmt.tcp import (
     TCPHeaderFormat,
@@ -92,5 +94,9 @@ def ginit_glb_comp():
     GLBComponent._INITED = True
 
     GLBComponent.div_mgr = DefaultIVMgr()
-    # GLBComponent.id_generator = 
-    # GLBComponent.main_tcp_aff
+    GLBComponent.id_generator = IDGenerator(GLBInfo.config.basic.node_id, 0)
+    GLBComponent.main_tcp_aff = None
+    GLBComponent.main_udp_aff = None
+    GLBComponent.tcp_pkt_wrapper = TCPPacketWrapper()
+    GLBComponent.udp_pkt_wrapper = None
+    GLBComponent.logic_handler = None

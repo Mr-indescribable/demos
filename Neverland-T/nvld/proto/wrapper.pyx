@@ -12,7 +12,6 @@ from ..exceptions import (
     PktWrappingError,
     PktUnwrappingError,
     InvalidPkt,
-    DecryptionFailed,
 )
 from .fmt import SpecialLength
 from .fmt.tcp import (
@@ -68,17 +67,9 @@ class PacketWrapper():
         pass
 
     def _find_fmt(self, proto, type_):
-        if proto == PktProto.TCP:
-            if type_ == PktTypes.DATA:
-                return GLBPktFmt.tcp_data
-            elif type_ == PktTypes.CONN_CTRL:
-                return GLBPktFmt.tcp_conn_ctrl
-            elif type_ == PktTypes.CLST_CTRL:
-                return GLBPktFmt.tcp_clst_ctrl
-        elif proto == PktProto.UDP:
-            return GLBPktFmt.udp_data
-
-        return None
+        raise NotImplemented(
+            'method _find_fmt should be implemented by sub-classes'
+        )
 
     def wrap(self, pkt):
         pkt_fmt = self._find_fmt(pkt.proto, pkt.fields.type)
@@ -201,7 +192,7 @@ class PacketWrapper():
         elif pkt.proto == PktProto.UDP:
             pass
         else:
-            pass
+            raise InvalidPkt('unknown protocol type')
 
         return pkt
 
@@ -314,3 +305,19 @@ class PacketWrapper():
                 raise InvalidPkt('failed to parse a PY_DICT field')
             except UnicodeDecodeError:
                 raise InvalidPkt('failed to decode a PY_DICT field')
+
+
+class TCPPacketWrapper(PacketWrapper):
+
+    def _find_fmt(self, proto, type_):
+        if proto == PktProto.TCP:
+            if type_ == PktTypes.DATA:
+                return GLBPktFmt.tcp_data
+            elif type_ == PktTypes.CONN_CTRL:
+                return GLBPktFmt.tcp_conn_ctrl
+            elif type_ == PktTypes.CLST_CTRL:
+                return GLBPktFmt.tcp_clst_ctrl
+        elif proto == PktProto.UDP:
+            return GLBPktFmt.udp_data
+
+        raise InvalidPkt('Cannot find format for the packet')

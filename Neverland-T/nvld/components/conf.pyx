@@ -101,6 +101,14 @@ class ConfigMgr():
                 'crypto.iv_duration_range shall contain integers only'
             )
 
+        traffic = net.traffic
+        if not VerifiTools.type_matched(traffic, ODict):
+            raise ConfigError('traffic block must be a JSON object')
+        if not VerifiTools.type_matched(traffic.calc_span, float):
+            raise ConfigError('traffic.calc_span must be a float')
+        if not VerifiTools.type_matched(traffic.channel_bw, int):
+            raise ConfigError('traffic.channel_bw must be an integer')
+
         shm = config.shm
         if not VerifiTools.type_matched(shm, ODict):
             raise ConfigError('shm block must be a JSON object')
