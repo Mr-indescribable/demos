@@ -7,6 +7,7 @@ from ..utils.enumeration import MetaEnum
 from ..utils.misc import errno_from_exception
 from ..fdx.tcp import FDXTCPConn
 from ..exceptions import TCPError, TryAgain
+from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
     TCPConnHelper,
     TCPPacketHelper,
@@ -72,8 +73,8 @@ class NLSwirl():
             return FDXTCPConn(
                 conn,
                 src=None,
-                plain_mod=True,  # TODO change this to False
-                cryptor=None,
+                plain_mod=False,
+                cryptor=CryptoHelper.new_stream_cryptor(),
                 blocking=False,
             )
         except OSError as e:
