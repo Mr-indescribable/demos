@@ -15,6 +15,7 @@
 
 		"tcp": {
 			"conn_max_retry": 4,
+			"nls_cache_size": 64,
 			"aff_listen_addr": "0.0.0.0",
 			"aff_listen_port": 17151
 		},

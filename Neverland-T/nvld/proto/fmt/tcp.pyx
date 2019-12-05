@@ -10,7 +10,7 @@ from ..fc import (
     tcp_src_calculator,
     tcp_mac_calculator,
     salt_calculator,
-    sn_calculator,
+    gid_calculator,
     time_calculator,
 )
 
@@ -61,11 +61,19 @@ class TCPHeaderFormat(BasePktFormat):
                        calc_priority = 0xff,
                    ),
 
-            # Each UDP packet shall have a serial number as its identifier.
+            # Each packet shall have a global identifier.
+            'gid': FieldDefinition(
+                       length        = 8,
+                       type          = FieldTypes.STRUCT_U_LONG_LONG,
+                       calculator    = gid_calculator,
+                       calc_priority = 0x00,
+                   ),
+
+            # Eectional identifier in a NLSwirl channel.
+            # The sn fields should be managed by NLSwirl itself.
             'sn': FieldDefinition(
                       length        = 8,
                       type          = FieldTypes.STRUCT_U_LONG_LONG,
-                      calculator    = sn_calculator,
                       calc_priority = 0x00,
                   ),
 

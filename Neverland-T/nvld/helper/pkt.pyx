@@ -7,3 +7,7 @@ class TCPPacketHelper():
     def pkt_2_bytes(cls, pkt):
         wrapped_pkt = GLBComponent.tcp_pkt_wrapper.wrap(pkt)
         return wrapped_pkt.data
+
+    @classmethod
+    def wrap(cls, pkt):
+        return GLBComponent.tcp_pkt_wrapper.wrap(pkt)

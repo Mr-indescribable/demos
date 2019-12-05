@@ -82,7 +82,7 @@ def udp_src_calculator(pkt):
     return (GLBInfo.local_ip, GLBInfo.svr_udp_port)
 
 
-def sn_calculator(pkt):
+def gid_calculator(pkt):
     return GLBComponent.id_generator.gen()
 
 

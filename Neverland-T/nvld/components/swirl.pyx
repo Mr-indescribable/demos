@@ -6,6 +6,7 @@ from ..glb import GLBInfo
 from ..pkt.tcp import TCPPacket
 from ..pkt.general import PktTypes, PktProto
 from ..utils.ev import DisposableEvent
+from ..utils.fifo import NLFifo
 from ..utils.enumeration import MetaEnum
 from ..utils.misc import errno_from_exception
 from ..fdx.tcp import FDXTCPConn
@@ -50,30 +51,51 @@ class NLSwirl():
         self._conn_cnt = conn_cnt
         self._bandwidth = bandwidth
         self._poller = poller
+
         self._io_helper = NonblockingTCPIOHelper(self._poller)
         self._conn_max_retry = GLBInfo.config.net.tcp.conn_max_retry
+        self._cache_size = GLBInfo.config.net.tcp.nls_cache_size
         self._reconn_enabled = True if self._conn_max_retry > 0 else False
 
         # event set
         self._evs_in  = self._poller.DEFAULT_EV
         self._evs_out = self._ev_in | self._poller.EV_OUT
 
-        self._send_buf = b''
-        self._send_buf_lk = Lock()
-        self._pkt_buffer = []   # A receive buffer that stores packets
+        # An event for the Filler to wait, the filler should not
+        # start filling the channel until receiving this event.
+        self._ready_ev = DisposableEvent()
+        self._ready_ev_triggered = False
+
+        self._pkt_send_buf_lk = Lock()
+        self._pkt_send_buf = []
+        self._pkt_recv_buf = []
 
         self._fds = []          # file descriptors
         self._conn_map = {}     # fd-to-conn mapping
         self._conn_lk_map = {}  # fd-to-lock mapping
         self._conn_st_map = {}  # fd-to-state mapping
+        self._conn_ct_map = {}  # fd-to-CurrentlyTransmittingSN mapping
         self._conn_retried = 0  # retried times of reconnecting
         self._avai_conns = 0    # currently available connections
         self._avai_fds = []     # currently available fds
 
-        # An event for the Filler to wait, the filler should not
-        # start filling the channel until receiving this event.
-        self._ready_ev = DisposableEvent()
-        self._ready_ev_triggered = False
+        # corresponds to the sn field in the header of TCP packets
+        self._sn = 0
+
+        # A cache which holds a set of transmitted packets; {sn: bytes}
+        self._pkt_cache = {}
+
+        # A FIFO queue that contains all SN in self._pkt_cache
+        self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
+
+    def _next_sn(self):
+        try:
+            return self._sn
+        finally:
+            self._sn += 1
+
+    def _assign_sn(self, pkt):
+        pkt.fields.sn = self._next_sn()
 
     def _connect_remote(self):
         try:
@@ -107,6 +129,9 @@ class NLSwirl():
 
             if fd in self._avai_fds:
                 self._avai_fds.remove(fd)
+
+            if fd in self._conn_ct_map:
+                self._conn_ct_map.pop(fd)
 
     def _add_conn(self, conn, state):
         fd = conn.fd
@@ -142,6 +167,14 @@ class NLSwirl():
             self._ready_ev.trigger()
             self._ready_ev_triggered = True
 
+    def _alloc_pkt_with_lock(self, fd, pkt):
+        lock = self._conn_lk_map.get(fd)
+        conn = self._conn_map.get(fd)
+
+        with lock:
+            self._conn_ct_map[fd] = pkt.fields.sn
+            self._io_helper.append_data(conn, pkt.data)
+
     # makes connection with other node
     def build_channel(self):
         for _ in range(self._conn_cnt):
@@ -163,10 +196,24 @@ class NLSwirl():
     def add_conn(self, conn, state):
         self._add_conn(conn, state)
 
-    # adds data into self._send_buf
-    def append_data(self, data):
-        with self._send_buf_lk:
-            self._send_buf += data
+    # adds packet into self._pkt_send_buf
+    def append_pkt(self, pkt):
+        self._assign_sn(pkt)
+        TCPPacketHelper.wrap(pkt)
+
+        sn = pkt.fields.sn
+
+        with self._pkt_send_buf_lk:
+            self._pkt_send_buf.append(pkt)
+
+        # add packet to the cache
+        if self._pkt_cache_sn_fifo.maxlen_reached:
+            poped_sn = self._pkt_cache_sn_fifo.append(sn)
+            self._pkt_cache.pop(poped_sn)
+        else:
+            self._pkt_cache_sn_fifo.append(sn)
+
+        self._pkt_cache.update({sn: pkt})
 
     # event handler of EV_IN
     def handle_in(self, fd):
@@ -181,12 +228,16 @@ class NLSwirl():
         ):
             self._on_connected(fd)
 
+        # TODO: need to set next packet length here
+        # TODO: need to unwrap the packet here
+        # TODO: need to check sn here
+
         try:
             pkt = self._io_helper.handle_recv(conn)
         except TryAgain:
             return
 
-        self._pkt_buffer.append(pkt)
+        self._pkt_recv_buf.append(pkt)
 
     # event hander of EV_OUT
     def handle_out(self, fd):
@@ -198,6 +249,12 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
+
+        # while we have data to send, we don't need to wait for the
+        # filler to fill the channel anyway, NLSwirl itself should
+        # send the data immediately (the so-called high priority).
+        if self.pkts_to_send > 0 and conn.send_buf_len == 0:
+            self._alloc_pkt_with_lock(fd, self._pkt_send_buf.pop(0))
 
         # the helper will help us to do the event-changing job
         # if there is no data to send
@@ -214,12 +271,16 @@ class NLSwirl():
         else:
             raise TCPError('Connection closed by remote')
 
+        # TODO: need to re-send the possibly damaged packet
+
     # event hander of EV_HUP
     def handle_hup(self, fd):
         if self._reconn_enabled:
             self._reconnect()
         else:
             raise TCPError('Connection closed by both remote and local')
+
+        # TODO: need to re-send the possibly damaged packet
 
     # event hander of EV_ERR
     def handle_err(self, fd):
@@ -246,9 +307,11 @@ class NLSwirl():
             else:
                 raise TCPError(errmsg)
 
+        # TODO: need to re-send the possibly damaged packet
+
     def pop_pkt(self):
-        if len(self._pkt_buffer) > 0:
-            return self._pkt_buffer.pop(0)
+        if len(self._pkt_recv_buf) > 0:
+            return self._pkt_recv_buf.pop(0)
         else:
             raise TryAgain('no more packets')
 
@@ -261,8 +324,12 @@ class NLSwirl():
         return self._fds
 
     @property
-    def pkts_to_handle(self):
-        return len(self._pkt_buffer)
+    def pkts_to_read(self):
+        return len(self._pkt_recv_buf)
+
+    @property
+    def pkts_to_send(self):
+        return len(self._pkt_send_buf)
 
 
 # The channel filler for the NLSwirl.

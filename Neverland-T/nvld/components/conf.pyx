@@ -48,6 +48,8 @@ class ConfigMgr():
 
         if not VerifiTools.type_matched(net.tcp.conn_max_retry, int):
             raise ConfigError('net.tcp.conn_max_retry must be an integer')
+        if not VerifiTools.type_matched(net.tcp.nls_cache_size, int):
+            raise ConfigError('net.tcp.nls_cache_size must be an integer')
         if net.tcp.conn_max_retry < 0:
             raise ConfigError('net.tcp.conn_max_retry must not be negative')
         if not VerifiTools.type_matched(net.tcp.aff_listen_addr, str):
