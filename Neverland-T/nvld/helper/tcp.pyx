@@ -66,6 +66,10 @@ class TCPPacketHelper():
         else:
             raise TryAgain()
 
+    @classmethod
+    def calc_next_blk_size(self, aff):
+        pass
+
 
 class NonblockingTCPIOHelper():
 

@@ -70,6 +70,11 @@ class NLSwirl():
         self._pkt_send_buf = []
         self._pkt_recv_buf = []
 
+        # This is a receive buffer as well, but this one is internal, it
+        # contains all received packets in random order, and than we move
+        # these packet into self._pkt_recv_buf and sort them by the sn field.
+        self.__internal_recv_buf = set()
+
         self._fds = []          # file descriptors
         self._conn_map = {}     # fd-to-conn mapping
         self._conn_lk_map = {}  # fd-to-lock mapping
@@ -237,7 +242,8 @@ class NLSwirl():
         except TryAgain:
             return
 
-        self._pkt_recv_buf.append(pkt)
+        self.__internal_recv_buf.add(pkt)
+        # self._pkt_recv_buf.append(pkt)
 
     # event hander of EV_OUT
     def handle_out(self, fd):

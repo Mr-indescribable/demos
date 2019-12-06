@@ -37,6 +37,9 @@ class FDXTCPConn():
     def append_data(self, data):
         return self._eff.append_data(data)
 
+    def read_data(self, length):
+        return self._aff.read_data(length)
+
     def pop_data(self, length):
         return self._aff.pop_data(length)
 

@@ -134,6 +134,15 @@ class TCPAff():
     def set_next_blk_size(self, blk_size):
         self._next_blk_size = blk_size
 
+    def read_data(self, length):
+        if length > self.recv_buf_len:
+            raise NotEnoughData()
+
+        if self._plain_mod:
+            return self._raw_buf[:length]
+        else:
+            return self._pln_buf[:length]
+
     def pop_data(self, length):
         if length > self.recv_buf_len:
             raise NotEnoughData()

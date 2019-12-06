@@ -51,6 +51,10 @@ class TCPHeaderFormat(BasePktFormat):
                         type   = FieldTypes.STRUCT_U_CHAR,
                     ),
 
+            # Here, we define that the metadata of the TCP packet
+            # consists of these 3 fields above. These fields are
+            # essential for parsing the whole packet.
+
             # The Message Authentication Code.
             # In protocol v0, we use sha256 as the digest method,
             # so the length is fixed to 64

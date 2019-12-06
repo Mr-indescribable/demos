@@ -22,6 +22,11 @@ from .fmt.tcp import (
 )
 
 
+__all__ = [
+    'TCPPacketWrapper',
+]
+
+
 class _DataSpliter():
 
     def __init__(self):
@@ -51,7 +56,7 @@ class _DataSpliter():
         return field, len(field)
 
 
-class PacketWrapper():
+class _PacketWrapper():
 
     # The PacketWrapper class
     #
@@ -217,59 +222,11 @@ class PacketWrapper():
 
         return True
 
+    def parse_metadata(self, data):
+        raise NotImplemented()
+
     def _parse_tcp_pkt(self, pkt):
-        spliter = _DataSpliter()
-        fields = ODict()
-        byte_fields = ODict()
-        data = pkt.data
-
-        if len(data) < 7:
-            raise InvalidPkt('packet too short')
-
-        # parse first 3 fields: rsv, len, type
-        for field_name, definition in TCPHeaderFormat.__fmt__.items():
-            field_data, field_len = spliter.split(data, definition.length)
-
-            try:
-                value = self._unpack_field(field_data, definition.type)
-            except pystruct.error:
-                raise InvalidPkt('unpack failed')
-
-            fields.__update__(**{field_name: value})
-            byte_fields.__update__(**{field_name: field_data})
-
-            if field_name == 'type':
-                break
-
-        fmt = self._find_fmt(PktProto.TCP, fields.type)
-        if fmt == None:
-            raise InvalidPkt('unknown format')
-
-        # parse the rest of the packet
-        for field_name, definition in fmt.__fmt__.items():
-            if field_name in ('rsv', 'len', 'type'):
-                continue
-
-            field_data, field_len = spliter.split(data, definition.length)
-
-            # Packet too short, it must be invalid
-            if len(field_data) == 0:
-                raise InvalidPkt('packet too short')
-
-            try:
-                value = self._unpack_field(field_data, definition.type)
-            except pystruct.error:
-                raise InvalidPkt('unpack failed')
-
-            fields.__update__(**{field_name: value})
-            byte_fields.__update__(**{field_name: field_data})
-
-        body_type = fields.type
-        body_fmt = self._find_fmt(pkt.proto, body_type)
-        if body_fmt is None:
-            raise InvalidPkt('invalid type')
-
-        return fields, byte_fields, fmt
+        raise NotImplemented()
 
     def _unpack_field(self, data, field_type):
         # unpack a single field
@@ -307,7 +264,7 @@ class PacketWrapper():
                 raise InvalidPkt('failed to decode a PY_DICT field')
 
 
-class TCPPacketWrapper(PacketWrapper):
+class TCPPacketWrapper(_PacketWrapper):
 
     def _find_fmt(self, proto, type_):
         if proto == PktProto.TCP:
@@ -321,3 +278,70 @@ class TCPPacketWrapper(PacketWrapper):
             return GLBPktFmt.udp_data
 
         raise InvalidPkt('Cannot find format for the packet')
+
+    def _parse_tcp_pkt(self, pkt):
+        spliter = _DataSpliter()
+        fields = ODict()
+        byte_fields = ODict()
+        data = pkt.data
+
+        if len(data) < 7:
+            raise InvalidPkt('packet too short')
+
+        _fields, _byte_fields = self.parse_metadata(data)
+        fields.__update__(**_fields)
+        byte_fields.__update__(**_byte_fields)
+
+        fmt = self._find_fmt(PktProto.TCP, fields.type)
+        if fmt == None:
+            raise InvalidPkt('unknown format')
+
+        # parse the rest of the packet
+        for field_name, definition in fmt.__fmt__.items():
+            # skip metadata
+            if field_name in ('rsv', 'len', 'type'):
+                continue
+
+            field_data, field_len = spliter.split(data, definition.length)
+
+            # Packet too short, it must be invalid
+            if len(field_data) == 0:
+                raise InvalidPkt('packet too short')
+
+            try:
+                value = self._unpack_field(field_data, definition.type)
+            except pystruct.error:
+                raise InvalidPkt('unpack failed')
+
+            fields.__update__(**{field_name: value})
+            byte_fields.__update__(**{field_name: field_data})
+
+        body_type = fields.type
+        body_fmt = self._find_fmt(pkt.proto, body_type)
+        if body_fmt is None:
+            raise InvalidPkt('invalid type')
+
+        return fields, byte_fields, fmt
+
+    def parse_metadata(self, data):
+        fields = dict()
+        byte_fields = dict()
+
+        for field_name, definition in TCPHeaderFormat.__fmt__.items():
+            field_data, field_len = spliter.split(data, definition.length)
+
+            try:
+                value = self._unpack_field(field_data, definition.type)
+            except pystruct.error:
+                raise InvalidPkt('unpack failed')
+
+            fields.update( {field_name: value} )
+            byte_fields.update( {field_name: field_data} )
+
+            if field_name == 'type':
+                break
+
+        if fields.rsv != RESERVED_FIELD_VALUE:
+            raise InvalidPkt()
+
+        return fields, byte_fields
