@@ -7,8 +7,9 @@ from nvld.utils.od import ODict
 from nvld.crypto import StreamCryptor, DGramCryptor, ALL_CIPHERS
 
 
-div_mgr = DefaultIVMgr(iv_len=12)
-div_mgr.load( os.urandom(32 * 12) )
+div_mgr = DefaultIVMgr(iv_len=32)
+div_mgr.load_as_stmc_iv( os.urandom(32 * 12) )
+div_mgr.load_as_dgmc_iv( os.urandom(32 * 12) )
 GLBComponent.div_mgr = div_mgr
 
 

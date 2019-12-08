@@ -18,6 +18,10 @@ class ConnectionLost(Exception):
     pass
 
 
+class NLSChannelClosed(Exception):
+    pass
+
+
 class NotEnoughData(Exception):
     pass
 

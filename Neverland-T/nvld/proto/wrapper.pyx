@@ -32,6 +32,9 @@ class _DataSpliter():
     def __init__(self):
         self.cur = 0
 
+    def reset(self):
+        self.cur = 0
+
     def split(self, data, length):
         if length in SpecialLength._values():
             field, actual_len = self._split_special(data, length)
@@ -69,7 +72,7 @@ class _PacketWrapper():
     #     except socket addresses.
 
     def __init__(self):
-        pass
+        self._spliter = _DataSpliter()
 
     def _find_fmt(self, proto, type_):
         raise NotImplemented(
@@ -182,7 +185,7 @@ class _PacketWrapper():
         if pkt.proto == PktProto.TCP:
             fields, byte_fields, fmt = self._parse_tcp_pkt(pkt)
 
-            if self._validate(byte_fields, fmt):
+            if self._validate_tcp_pkt(byte_fields, fmt):
                 pkt.fields = fields
                 pkt.byte_fields = byte_fields
 
@@ -201,26 +204,8 @@ class _PacketWrapper():
 
         return pkt
 
-    # validates the packet and returns a boolean which
-    # indicates whether the packet is valid
-    def _validate(self, byte_fields, fmt):
-        if byte_fields.rsv != RESERVED_FIELD_VALUE:
-            return False
-
-        if byte_fields.delimiter != DELIMITER_FIELD_VALUE:
-            return False
-
-        data_2_hash = b''
-        for field_name, definition in fmt.__fmt__.items():
-            if field_name == 'mac':
-                continue
-
-            data_2_hash += getattr(byte_fields, field_name)
-
-        if HashTools.sha256(data_2_hash).encode() != byte_fields.mac:
-            return False
-
-        return True
+    def _validate_tcp_pkt(self, byte_fields, fmt):
+        raise NotImplemented()
 
     def parse_metadata(self, data):
         raise NotImplemented()
@@ -280,7 +265,7 @@ class TCPPacketWrapper(_PacketWrapper):
         raise InvalidPkt('Cannot find format for the packet')
 
     def _parse_tcp_pkt(self, pkt):
-        spliter = _DataSpliter()
+        self._spliter.reset()
         fields = ODict()
         byte_fields = ODict()
         data = pkt.data
@@ -302,7 +287,7 @@ class TCPPacketWrapper(_PacketWrapper):
             if field_name in ('rsv', 'len', 'type'):
                 continue
 
-            field_data, field_len = spliter.split(data, definition.length)
+            field_data, field_len = self._spliter.split(data, definition.length)
 
             # Packet too short, it must be invalid
             if len(field_data) == 0:
@@ -323,12 +308,32 @@ class TCPPacketWrapper(_PacketWrapper):
 
         return fields, byte_fields, fmt
 
+    def _validate_tcp_pkt(self, byte_fields, fmt):
+        if byte_fields.rsv != RESERVED_FIELD_VALUE:
+            return False
+
+        if byte_fields.delimiter != DELIMITER_FIELD_VALUE:
+            return False
+
+        data_2_hash = b''
+        for field_name, definition in fmt.__fmt__.items():
+            if field_name == 'mac':
+                continue
+
+            data_2_hash += getattr(byte_fields, field_name)
+
+        if HashTools.sha256(data_2_hash).encode() != byte_fields.mac:
+            return False
+
+        return True
+
     def parse_metadata(self, data):
+        self._spliter.reset()
         fields = dict()
         byte_fields = dict()
 
         for field_name, definition in TCPHeaderFormat.__fmt__.items():
-            field_data, field_len = spliter.split(data, definition.length)
+            field_data, field_len = self._spliter.split(data, definition.length)
 
             try:
                 value = self._unpack_field(field_data, definition.type)
@@ -341,7 +346,7 @@ class TCPPacketWrapper(_PacketWrapper):
             if field_name == 'type':
                 break
 
-        if fields.rsv != RESERVED_FIELD_VALUE:
+        if fields.get('rsv') != RESERVED_FIELD_VALUE:
             raise InvalidPkt()
 
         return fields, byte_fields

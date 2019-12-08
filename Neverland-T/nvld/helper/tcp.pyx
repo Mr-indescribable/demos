@@ -3,6 +3,9 @@ import socket
 
 from ..exceptions import TryAgain
 from ..utils.misc import errno_from_exception
+from ..pkt.general import PktProto
+from ..pkt.tcp import TCPPacket
+from ..glb import GLBComponent
 
 
 class TCPConnHelper():
@@ -67,8 +70,36 @@ class TCPPacketHelper():
             raise TryAgain()
 
     @classmethod
-    def calc_next_blk_size(self, aff):
-        pass
+    def wrap(cls, pkt):
+        return GLBComponent.tcp_pkt_wrapper.wrap(pkt)
+
+    @classmethod
+    def unwrap(cls, pkt):
+        return GLBComponent.tcp_pkt_wrapper.unwrap(pkt)
+
+    @classmethod
+    def pkt_2_bytes(cls, pkt):
+        wrapped_pkt = cls.wrap(pkt)
+        return wrapped_pkt.data
+
+    @classmethod
+    def bytes_2_pkt(cls, data):
+        pkt = TCPPacket()
+        pkt.data = data
+        pkt.proto = PktProto.TCP
+        return cls.unwrap(pkt)
+
+    @classmethod
+    def parse_tcp_metadata(cls, data):
+        metadata, _ = GLBComponent.tcp_pkt_wrapper.parse_metadata(data)
+        return metadata
+
+    @classmethod
+    def identify_next_blk_len(cls, conn):
+        metadata_b = conn.read_data(3)
+        metadata = cls.parse_tcp_metadata(metadata_b)
+        next_len = metadata.get('len')
+        conn.set_next_blk_size(next_len)
 
 
 class NonblockingTCPIOHelper():

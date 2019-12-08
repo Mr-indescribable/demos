@@ -83,13 +83,7 @@ class Cryptor():
         self._key_len = self._cipher_cls.key_len_map[self._cipher_name]
         self._iv_len = self._cipher_cls.iv_len_map[self._cipher_name]
 
-        self._iv = iv
-        if self._iv_len != len(self._iv):
-            raise RuntimeError(
-                f'IV length error, '
-                f'expected: {self._iv_len}, got: {len(self._iv)}'
-            )
-
+        self._iv = self._trim_iv(iv, self._iv_len)
         self._key = key or HashTools.hkdf(self.__passwd, self._key_len)
 
         self._key = self._key[:self._key_len]
@@ -107,6 +101,15 @@ class Cryptor():
             f'Loadded crypto implementation {self._cipher_cls.__name__} '
             f'with cipher {self._cipher_name}'
         )
+
+    def _trim_iv(self, iv, exp_len):
+        if len(iv) < exp_len:
+            raise RuntimeError(
+                f'IV length error, '
+                f'expected: {self._iv_len}, got: {len(self._iv)}'
+            )
+
+        return iv[:exp_len]
 
     def _init_ciphers(self):
         if self._cipher_cls._CINIT:
@@ -162,7 +165,7 @@ class StreamCryptor(Cryptor):
     ):
         cipher = GLBInfo.config.net.crypto.stream_cipher
         iv = iv or GLBComponent.div_mgr.random_stmc_div()
-        Cryptor.__init__(self, cipher, key, iv, attribution, stream_mod=True)
+        Cryptor.__init__(self, cipher, iv, key, attribution, stream_mod=True)
 
 
 # In this manner, the term Stream/DGram stands for Stream socket
@@ -180,4 +183,4 @@ class DGramCryptor(Cryptor):
     ):
         cipher = GLBInfo.config.net.crypto.dgram_cipher
         iv = iv or GLBComponent.div_mgr.random_dgmc_div()
-        Cryptor.__init__(self, cipher, key, iv, attribution, stream_mod=False)
+        Cryptor.__init__(self, cipher, iv, key, attribution, stream_mod=False)

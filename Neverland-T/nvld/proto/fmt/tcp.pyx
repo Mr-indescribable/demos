@@ -30,7 +30,7 @@ class TCPHeaderFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            # Reserved field, should be 0x00000000 within transmission
+            # Reserved field, should always be 0x00000000
             'rsv': FieldDefinition(
                        length  = 4,
                        type    = FieldTypes.PY_BYTES,
@@ -78,7 +78,6 @@ class TCPHeaderFormat(BasePktFormat):
             'sn': FieldDefinition(
                       length        = 8,
                       type          = FieldTypes.STRUCT_U_LONG_LONG,
-                      calc_priority = 0x00,
                   ),
 
             # The source of the packet

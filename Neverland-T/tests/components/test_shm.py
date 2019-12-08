@@ -17,9 +17,14 @@ def __with_glb_conf(func):
             gl_config.acquire()
 
             conf_dict = {
+                'net': {
+                    'traffic': {
+                        'calc_span': 0.1
+                    }
+                },
                 'shm': {
                     'socket': '/tmp/nvld-shm.socket'
-                }
+                },
             }
 
             GLBInfo._INITED = True

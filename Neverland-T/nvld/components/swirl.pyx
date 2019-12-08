@@ -10,13 +10,18 @@ from ..utils.fifo import NLFifo
 from ..utils.enumeration import MetaEnum
 from ..utils.misc import errno_from_exception
 from ..fdx.tcp import FDXTCPConn
-from ..exceptions import TCPError, TryAgain
-from ..helper.pkt import TCPPacketHelper
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
     TCPConnHelper,
     TCPPacketHelper,
     NonblockingTCPIOHelper,
+)
+from ..exceptions import (
+    TCPError,
+    TryAgain,
+    InvalidPkt,
+    ConnectionLost,
+    NLSChannelClosed,
 )
 
 
@@ -29,6 +34,13 @@ class NLSConnState(metaclass=MetaEnum):
     RECONNECTING = 0x04  # re-establishing the lost connection
 
 
+# When the continuity of the sn is broken and the peer is still sending
+# packets without retransmitting the missing packet, we have to close the
+# channel. When this threshold is reached, some of NLSwirl's functionalities
+# is not working as expected.
+NLS_UNCONTINUOUS_SN_THRESHOLD = 50  # (packets)
+
+
 # The swirl module of Neverland
 #
 # The NLSwirl module provides a special method to handle TCP traffic
@@ -38,6 +50,8 @@ class NLSConnState(metaclass=MetaEnum):
 # Once we have actual data to transfer, the swirl shall reduce
 # same amount of fake data and insert the actual data into
 # the fake data stream with high priority.
+#
+# It also provides in order transmission on the channel layer.
 class NLSwirl():
 
     # Constructor
@@ -73,7 +87,7 @@ class NLSwirl():
         # This is a receive buffer as well, but this one is internal, it
         # contains all received packets in random order, and than we move
         # these packet into self._pkt_recv_buf and sort them by the sn field.
-        self.__internal_recv_buf = set()
+        self.__internal_recv_buf = dict()    # {sn: pkt}
 
         self._fds = []          # file descriptors
         self._conn_map = {}     # fd-to-conn mapping
@@ -84,7 +98,8 @@ class NLSwirl():
         self._avai_conns = 0    # currently available connections
         self._avai_fds = []     # currently available fds
 
-        # corresponds to the sn field in the header of TCP packets
+        # corresponds to the sn field in the header of the last
+        #  TCP packet appended into self._pkt_recv_buf
         self._sn = 0
 
         # A cache which holds a set of transmitted packets; {sn: bytes}
@@ -161,9 +176,9 @@ class NLSwirl():
     def _reconnect(self):
         fd = self._new_conn()
         self._conn_st_map[fd] = NLSConnState.RECONNECTING
-        self._conn_retried = 0
 
     def _on_connected(self, fd):
+        self._conn_retried = 0
         self._conn_st_map[fd] = NLSConnState.CONNECTED
         self._avai_fds.append(fd)
         self._avai_conns += 1
@@ -172,6 +187,11 @@ class NLSwirl():
             self._ready_ev.trigger()
             self._ready_ev_triggered = True
 
+    # when the remote node sends something incorrect
+    def _on_remote_error(self):
+        self.close_channel()
+        raise NLSChannelClosed('Remote node does not work properly')
+
     def _alloc_pkt_with_lock(self, fd, pkt):
         lock = self._conn_lk_map.get(fd)
         conn = self._conn_map.get(fd)
@@ -179,6 +199,43 @@ class NLSwirl():
         with lock:
             self._conn_ct_map[fd] = pkt.fields.sn
             self._io_helper.append_data(conn, pkt.data)
+
+    # Move packet in self.__shift_recvd_pkt into self._pkt_recv_buf
+    # and sort them by the sn field.
+    #
+    # The sn must be continuous, if we are missing an sn, then we should
+    # simply wait its arrival and queue other received packets until
+    # the packet with the missing sn has been received.
+    #
+    # The missing packet must be sent by the peer anyway. Because of
+    # TCP's reliability, the peer can know which one is the missing packet.
+    # The loss only happends when an TCP connection is disconnected for some
+    # unexpected reason, at that moment, the packet which is in transmission
+    # is the missing packet (if not entirely transmitted).
+    #
+    # If the missing packet cannot be handled properly,
+    # then some of functionalities of the NLSwirl is broken.
+    def __shift_recvd_pkt(self):
+        while self.__internal_recv_buf:
+            next_sn = self._sn + 1
+
+            if next_sn in self.__internal_recv_buf:
+                pkt = self.__internal_recv_buf.pop(next_sn)
+                self._pkt_recv_buf.append(pkt)
+                self._sn = next_sn
+            else:
+                break
+
+    def _buff_pkt(self, pkt):
+        sn = pkt.fields.sn
+
+        if self._sn + 1 == sn:
+            self._pkt_recv_buf.append(pkt)
+            self._sn += 1
+        else:
+            self.__internal_recv_buf.update( {sn: pkt} )
+
+        self.__shift_recvd_pkt()
 
     # makes connection with other node
     def build_channel(self):
@@ -233,17 +290,45 @@ class NLSwirl():
         ):
             self._on_connected(fd)
 
-        # TODO: need to set next packet length here
-        # TODO: need to unwrap the packet here
-        # TODO: need to check sn here
+        if conn.next_blk_size is None:
+            try:
+                conn.recv()
+            except TryAgain:
+                return
+            except ConnectionLost:
+                # TODO: reconnect
+                pass
+
+            if conn.recv_buf_len > 3:
+                try:
+                    TCPPacketHelper.identify_next_blk_len(conn)
+                except InvalidPkt:
+                    # This is not supposed to be happended.
+                    # In this case, the only thing we can do is disconnecting.
+                    self._on_remote_error()
+                else:
+                    # try to get next packet, the helper will help in
+                    # checking if we have sufficient data
+                    try:
+                        pkt_bt = TCPPacketHelper.pop_packet(conn)
+                    except TryAgain:
+                        return
+        else:
+            try:
+                pkt_bt = self._io_helper.handle_recv(conn)
+            except TryAgain:
+                return
 
         try:
-            pkt = self._io_helper.handle_recv(conn)
-        except TryAgain:
-            return
+            pkt = TCPPacketHelper.bytes_2_pkt(pkt_bt)
+        except InvalidPkt:
+            # same as above, we can only close the channel
+            self._on_remote_error()
 
-        self.__internal_recv_buf.add(pkt)
-        # self._pkt_recv_buf.append(pkt)
+        self._buff_pkt(pkt)
+
+        if len(self.__shift_recvd_pkt) > NLS_UNCONTINUOUS_SN_THRESHOLD:
+            self._on_remote_error()
 
     # event hander of EV_OUT
     def handle_out(self, fd):
@@ -272,6 +357,8 @@ class NLSwirl():
     # unless the program itself is exiting, so, in this case,
     # we must try to reconnect.
     def handle_rdhup(self, fd):
+        self._remove_conn(fd)
+
         if self._reconn_enabled:
             self._reconnect()
         else:
@@ -281,6 +368,8 @@ class NLSwirl():
 
     # event hander of EV_HUP
     def handle_hup(self, fd):
+        self._remove_conn(fd)
+
         if self._reconn_enabled:
             self._reconnect()
         else:

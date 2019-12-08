@@ -10,15 +10,15 @@ from ..pkt.general import PktTypes, PktProto
 # field calculators for PktFormat classes
 
 
-TCP_HEADER_LEN_IPV4 = 4 + 2 + 1 + 64 + 8 + 6 + 6
-TCP_HEADER_LEN_IPV6 = 4 + 2 + 1 + 64 + 8 + 18 + 18
+TCP_HEADER_LEN_IPV4 = 4 + 2 + 1 + 64 + 8 + 8 + 6 + 6
+TCP_HEADER_LEN_IPV6 = 4 + 2 + 1 + 64 + 8 + 8 + 18 + 18
 TCP_DELIMITER_LEN = 32
-TCP_CONN_CTRL_LEN = 4 + 16 + 2 + 1
+TCP_CONN_CTRL_LEN = 1 + 4 + 1 + 6 + 18 + 4
 
 
 def tcp_len_calculator(pkt):
     if pkt.type == PktTypes.DATA:
-        body_len = len(pkt.byte_fields.data)
+        body_len = len(pkt.byte_fields.data) + 1 + 4
     elif pkt.type == PktTypes.CONN_CTRL:
         body_len = TCP_CONN_CTRL_LEN
     elif pkt.type == PktTypes.CLST_CTRL:
