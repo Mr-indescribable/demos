@@ -59,7 +59,7 @@ NLS_UNCONTINUOUS_SN_THRESHOLD = 64  # (packets)
 #     channel, if the time is long enough, NLS_UNCONTINUOUS_SN_THRESHOLD
 #     will be reached and the channel will be broken.
 #
-#     To counter this, we need an additional strategy to handle partially delay.
+#     To counter this, we need an additional strategy to handle partial delay.
 class NLSwirl():
 
     # Constructor
