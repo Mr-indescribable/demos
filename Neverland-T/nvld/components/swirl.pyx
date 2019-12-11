@@ -338,7 +338,7 @@ class NLSwirl():
                 if self._reconn_enabled:
                     self._reconnect()
 
-            if conn.recv_buf_len > 3:
+            if conn.recv_buf_bts > 3:
                 try:
                     TCPPacketHelper.identify_next_blk_len(conn)
                 except InvalidPkt:
@@ -394,7 +394,7 @@ class NLSwirl():
         # while we have data to send, we don't need to wait for the
         # filler to fill the channel anyway, NLSwirl itself should
         # send the data immediately (the so-called high priority).
-        if conn.send_buf_len == 0:
+        if conn.send_buf_bts == 0:
             if len(self._missing_pkt) > 0:
                 self._alloc_pkt_with_lock(fd, self._missing_pkt.pop(0))
             elif len(self._pkt_send_buf) > 0:

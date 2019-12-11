@@ -134,8 +134,9 @@ class TCPEff():
     def get_socket_errmsg(self):
         return os.strerror( self.get_socket_errno() )
 
+    # bytes held by the send buffer
     @property
-    def send_buf_len(self):
+    def send_buf_bts(self):
         return len(self._send_buf)
 
     @property

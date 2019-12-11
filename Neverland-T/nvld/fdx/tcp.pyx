@@ -67,12 +67,12 @@ class FDXTCPConn():
         return self._fd
 
     @property
-    def recv_buf_len(self):
-        return self._aff.recv_buf_len
+    def recv_buf_bts(self):
+        return self._aff.recv_buf_bts
 
     @property
-    def send_buf_len(self):
-        return self._eff.send_buf_len
+    def send_buf_bts(self):
+        return self._eff.send_buf_bts
 
     @property
     def next_blk_size(self):

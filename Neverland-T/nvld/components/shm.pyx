@@ -115,7 +115,7 @@ def __existence_confirmed(func):
 
 
 def __try_to_parse_next_blk_size(conn):
-    if conn.next_blk_size is None and conn.recv_buf_len >= 4:
+    if conn.next_blk_size is None and conn.recv_buf_bts >= 4:
         # pop out 4 bytes of the length field, and then, we'll need to
         # receive a block that matchs the length
         length_bt = conn.pop_data(4)

@@ -135,7 +135,7 @@ class TCPAff():
         self._next_blk_size = blk_size
 
     def read_data(self, length):
-        if length > self.recv_buf_len:
+        if length > self.recv_buf_bts:
             raise NotEnoughData()
 
         if self._plain_mod:
@@ -144,7 +144,7 @@ class TCPAff():
             return self._pln_buf[:length]
 
     def pop_data(self, length):
-        if length > self.recv_buf_len:
+        if length > self.recv_buf_bts:
             raise NotEnoughData()
 
         if self._plain_mod:
@@ -162,8 +162,9 @@ class TCPAff():
     def get_socket_errmsg(self):
         return os.strerror( self.get_socket_errno() )
 
+    # bytes held by the receive buffer
     @property
-    def recv_buf_len(self):
+    def recv_buf_bts(self):
         if self._plain_mod:
             return len(self._raw_buf)
         else:

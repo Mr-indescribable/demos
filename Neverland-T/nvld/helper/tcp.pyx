@@ -61,7 +61,7 @@ class TCPPacketHelper():
     def pop_packet(cls, aff):
         if (
             aff.next_blk_size is not None and
-            aff.recv_buf_len >= aff.next_blk_size
+            aff.recv_buf_bts >= aff.next_blk_size
         ):
             pkt = aff.pop_data(aff.next_blk_size)
             aff.set_next_blk_size(None)
@@ -125,7 +125,7 @@ class NonblockingTCPIOHelper():
     def handle_send(self, eff, data=b''):
         bt_sent = eff.send(data)
 
-        if eff.send_buf_len == 0:
+        if eff.send_buf_bts == 0:
             self._poller.modify(eff.fd, self._ev_ro)
         else:
             self._poller.modify(eff.fd, self._ev_rw)
