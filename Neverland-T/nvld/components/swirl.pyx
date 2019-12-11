@@ -1,4 +1,5 @@
 import os
+import time
 import random
 from threading import Lock
 
@@ -103,6 +104,11 @@ class NLSwirl():
         self._pkt_send_buf = []
         self._pkt_recv_buf = []
 
+        # a buffer that stores packets that containing fake data
+        self._fpkt_buf = []
+        self._fpkt_lk = Lock()
+        self._fpkt_total_bytes = 0
+
         # This is a receive buffer as well, but this one is internal, it
         # contains all received packets in random order, and than we move
         # these packet into self._pkt_recv_buf and sort them by the sn field.
@@ -154,6 +160,7 @@ class NLSwirl():
         lock = self._conn_lk_map.get(fd)
 
         with lock:
+            self._fds.remove(fd)
             self._avai_conns -= 1
 
             self._poller.unregister(fd)
@@ -161,10 +168,9 @@ class NLSwirl():
             conn = self._conn_map.get(fd)
             conn.destroy()
 
-            self._fds.remove(fd)
-            self._conn_map.pop(fd)
             self._conn_lk_map.pop(fd)
             self._conn_st_map.pop(fd)
+            self._conn_map.pop(fd)
 
             if fd in self._avai_fds:
                 self._avai_fds.remove(fd)
@@ -258,7 +264,14 @@ class NLSwirl():
 
     def _extract_missing_pkt(self, fd):
         pkt = self._conn_ct_map.get(fd)
-        self._missing_pkt.append(pkt)
+
+        if pkt is None:
+            return
+
+        if pkt.fields.type == PktTypes.DATA and pkt.fields.fake:
+            return  # this is easier to read
+        else:
+            self._missing_pkt.append(pkt)
 
     # makes connection with other node
     def build_channel(self):
@@ -368,14 +381,29 @@ class NLSwirl():
         ):
             self._on_connected(fd)
 
+        # We need to check the last packet sent by the current connection,
+        # if it's a fake packet, then we need to reduce self._fpkt_total_bytes.
+        # We cannot simply reduce this counter when we allocate the packet
+        # to a connection, because it's not totally sent out at that time.
+        # Now it's the time that the transmission has been completed.
+        # And we should remove the last packet by the way.
+        last_pkt = self._conn_ct_map.pop(fd)
+        if last_pkt.fields.type == PktTypes.DATA and last_pkt.fields.fake:
+            self._fpkt_total_bytes -= last_pkt.fields.len
+
         # while we have data to send, we don't need to wait for the
         # filler to fill the channel anyway, NLSwirl itself should
         # send the data immediately (the so-called high priority).
         if conn.send_buf_len == 0:
             if len(self._missing_pkt) > 0:
                 self._alloc_pkt_with_lock(fd, self._missing_pkt.pop(0))
-            elif self.pkts_to_send > 0:
+            elif len(self._pkt_send_buf) > 0:
                 self._alloc_pkt_with_lock(fd, self._pkt_send_buf.pop(0))
+            elif len(self._fpkt_buf) > 0:
+                with self._fpkt_lk:
+                    fpkt = self._fpkt_buf.pop(0)
+
+                self._alloc_pkt_with_lock(fd, fpkt)
 
         # the helper will help us to do the event-changing job
         # if there is no data to send
@@ -457,8 +485,8 @@ class NLSwirl():
 
 # The channel filler for the NLSwirl.
 #
-# The filler takes the duty of filling the channel with data,
-# NLSwirl doesn't fill the channel itself, it only notices the
+# The filler takes the duty of filling the channel with fake data,
+# NLSwirl doesn't generate fake data itself, it only notices the
 # filler to do this.
 #
 # The filler instance must be run in a dedicated thread.
@@ -468,11 +496,23 @@ class NLSChannelFiller():
         self._swirl = swirl
         self._bandwidth = self._swirl._bandwidth
 
+        self._running = False
+
+        # TODO: should be configurable
+        self._fdata_len_min = 1024
+        self._fdata_len_max = 10240
+
         self._traffic_calc_span = GLBInfo.config.net.traffic.calc_span
 
         # rtbw == realtime bandwidth
         # means to be fit with aff/eff's realtime bandwidth calculation
         self._traffic_rtbw = self._bandwidth * self._traffic_calc_span
+
+        # last bandwidth calculating time
+        self._last_bwc_time = time.time()
+
+        # start of next bandwidth calculating time span
+        self._next_bwc_span = self._last_bwcalc_time + self._traffic_calc_span
 
         # fd == fake packet
         self.fp_fields = {
@@ -484,20 +524,66 @@ class NLSChannelFiller():
         }
 
     # generates fake data
-    def _gen_fdata(self, length):
+    def _gen_fpkt(self, length):
         self.fp_fields.update(data=os.urandom(length))
         pkt = TCPPacket(fields=self.fp_fields)
-        return TCPPacketHelper.pkt_2_bytes(pkt)
+        return TCPPacketHelper.wrap(pkt)
 
-    def _choose_conn(self):
-        fds = self._swirl._avai_fds
-        if len(fds) == 0:
-            raise TryAgain()
+    def _get_chn_rt_traffic(self):
+        total_rt_traffic = 0
 
-        fd = random.choice(fds)
-        return self._swirl._conn_map.get(fd)
+        for fd in self._swirl._fds:
+            conn_lock = self._swirl._conn_lk_map.get(fd)
+
+            # This could happen in some rare situation which is kinda
+            # like a race condition. But we cannot totally evade it
+            # since we cannot get the reference of the lock before we
+            # access swirl._fds.
+            if conn_lock is None:
+                continue
+
+            with conn_lock:
+                conn = self._swirl._conn_map.get(fd)
+                total_rt_traffic += conn.traffic_send_realtime
+
+        return total_rt_traffic
+
+    # fake bytes needed in current time span
+    def _fbytes_needed(self):
+        rt_tfc = self._get_chn_rt_traffic()
+
+        tfc_diff = self._traffic_rtbw - rt_tfc
+
+        if tfc_diff < self._fdata_len_min:
+            return 0
+        else:
+            return tfc_diff
+
+    def _wait_for_next_span(self):
+        t2s = self._next_bwc_span - time.time()
+
+        # t2s could be <= 0 due to the time consumption of the calculation
+        if t2s > 0:
+            time.sleep(t2s)
 
     def run(self):
         self._swirl._ready_ev.wait()
 
-        # TODO: to be continued
+        while self._running:
+            fbt_appended = 0
+            fbt_needed = self._fbytes_needed()
+
+            if fbt_needed == 0:
+                self._wait_for_next_span()
+            else:
+                while fbt_appended < fbt_needed:
+                    pkt = self._gen_fpkt()
+
+                    with self._swirl._fpkt_lk:
+                        self._swirl._fpkt_buf.append(pkt)
+                        self._swirl._fpkt_total_bytes += pkt.fields.len
+
+                    fbt_appended += pkt.fields.len
+
+    def shutdown(self):
+        self._running = False

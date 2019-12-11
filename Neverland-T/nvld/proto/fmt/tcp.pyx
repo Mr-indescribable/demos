@@ -121,8 +121,8 @@ class TCPDataPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            # a flag that marks whether this data packet is a pad of NLSwirl,
-            # in other words, a fake packet
+            # A flag that marks whether this data packet is a pad of NLSwirl,
+            # in other words, a fake packet. 0/1
             'fake': FieldDefinition(
                         length  = 1,
                         type    = FieldTypes.STRUCT_U_CHAR,
