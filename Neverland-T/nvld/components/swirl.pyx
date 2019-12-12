@@ -56,11 +56,22 @@ NLS_UNCONTINUOUS_SN_THRESHOLD = 64  # (packets)
 #
 # TODO:
 #     The current NLS protocol has a major weakness, the "unwelcomed ones"
-#     can manually delay the transmission of one of TCP connections in the
-#     channel, if the time is long enough, NLS_UNCONTINUOUS_SN_THRESHOLD
+#     could manually delay the transmission of one of TCP connections in
+#     the channel, if the time is long enough, NLS_UNCONTINUOUS_SN_THRESHOLD
 #     will be reached and the channel will be broken.
 #
-#     To counter this, we need an additional strategy to handle partial delay.
+#     For this, we'll need an additional strategy to handle partial delay.
+#
+#     But the real question is: do we really need to concern about this?
+#
+#     Unlike others, Neverland is designed to be used by a very little people,
+#     and it will not try to hide the trait of protocol like shadowsocks.
+#
+#     It will straightly show the trait against the "unwelcomed ones".
+#     With its very special trait, the Neverland protocol will not be
+#     identified as any known protocol, but this also means once the
+#     Neverland protocol get countered, the world we were guarding for
+#     will be erased in no time.
 class NLSwirl():
 
     # Constructor
