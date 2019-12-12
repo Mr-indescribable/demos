@@ -66,7 +66,7 @@ class NLSwirl():
     # Constructor
     #
     # :param remote: the socket address of a remote node to communicate
-    # :param conn_cnt: the quantity of TCP connections in the channel
+    # :param conn_cnt: maximum of TCP connections in the channel
     # :param bandwidth: the bandwidth of the channel, bytes per sec
     # :param poller: an instance of the event poller which is in use
     def __init__(self, remote, conn_cnt, bandwidth, poller):
@@ -122,6 +122,11 @@ class NLSwirl():
         self._conn_retried = 0  # retried times of reconnecting
         self._avai_conns = 0    # currently available connections
         self._avai_fds = []     # currently available fds
+        self._awkn_fdn = 0      # number of awoken fds
+
+        # When number of awoken connection less than this,
+        # we should perform an awakening. (if there is data to be sent)
+        self._awk_threshold = 1 if self._conn_cnt <= 3 else self._conn_cnt // 2
 
         # corresponds to the sn field in the header of the last
         # TCP packet appended into self._pkt_recv_buf
@@ -132,6 +137,31 @@ class NLSwirl():
 
         # A FIFO queue that contains all SN in self._pkt_cache
         self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
+
+    def _has_pkts_to_send(self):
+        return (
+            len(self._missing_pkt) > 0 or
+            len(self._pkt_send_buf) > 0 or
+            len(self._fpkt_buf) > 0
+        )
+
+    def _randomly_awake_conn(self):
+        fdn = len(self._fds)
+        minimum = 1 if fdn <= 3 else fdn // 2
+        n2awk = random.randint(minimum, fdn)
+
+        fds = random.choices(self._fds, k=n2awk)
+
+        for fd in fds:
+            lock = self._conn_lk_map.get(fd)
+
+            with lock:
+                conn = self._conn_map.get(fd)
+                self._io_helper.set_ev_rw(conn)
+
+    def _awake_conns(self):
+        if self._poller.get_w_fdn() <= self._awk_threshold:
+            self._randomly_awake_conn()
 
     def _next_sn(self):
         try:
@@ -312,6 +342,7 @@ class NLSwirl():
             self._pkt_cache_sn_fifo.append(sn)
 
         self._pkt_cache.update({sn: pkt})
+        self._awake_conns()
 
     # event handler of EV_IN
     def handle_in(self, fd):
@@ -407,7 +438,8 @@ class NLSwirl():
 
         # the helper will help us to do the event-changing job
         # if there is no data to send
-        self._io_helper.handle_send(conn)
+        auto_modify_ev = False if self._has_pkts_to_send() else True
+        self._io_helper.handle_send_ex(conn, auto_modify_ev)
 
     # event hander of EV_RDHUP
     #
@@ -584,6 +616,8 @@ class NLSChannelFiller():
                         self._swirl._fpkt_total_bytes += pkt.fields.len
 
                     fbt_appended += pkt.fields.len
+
+                self._swirl._awake_conns()
 
     def shutdown(self):
         self._running = False

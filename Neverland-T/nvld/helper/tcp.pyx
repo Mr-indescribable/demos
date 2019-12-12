@@ -126,12 +126,33 @@ class NonblockingTCPIOHelper():
         bt_sent = eff.send(data)
 
         if eff.send_buf_bts == 0:
-            self._poller.modify(eff.fd, self._ev_ro)
+            self.set_ev_ro(eff)
         else:
-            self._poller.modify(eff.fd, self._ev_rw)
+            self.set_ev_rw(eff)
 
         return bt_sent
 
+    def handle_send_ex(self, eff, data=b'', auto_modify_ev=True):
+        bt_sent = eff.send(data)
+
+        if auto_modify_ev:
+            if eff.send_buf_bts == 0:
+                self.set_ev_ro(eff)
+                modified_to_ro = True
+            else:
+                self.set_ev_rw(eff)
+                modified_to_ro = False
+        else:
+            modified_to_ro = False
+
+        return bt_sent, modified_to_ro
+
     def append_data(self, eff, data):
         eff.append_data(data)
-        self._poller.modify(eff.fd, self._ev_rw)
+        self.set_ev_rw(eff)
+
+    def set_ev_ro(self, xff):
+        self._poller.modify(xff.fd, self._ev_ro)
+
+    def set_ev_rw(self, xff):
+        self._poller.modify(xff.fd, self._ev_rw)
