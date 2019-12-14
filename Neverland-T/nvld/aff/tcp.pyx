@@ -5,6 +5,7 @@ import socket
 import logging
 
 from ..glb import GLBInfo
+from ..helper.crypto import CryptoHelper
 from ..utils.misc import errno_from_exception, errno_from_socket
 from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
 
@@ -195,19 +196,14 @@ class TCPAff():
 # which accepts connections and creates normal afferents
 class TCPServerAff():
 
-    # The constructor
-    #
-    # :param plain_mod: used in construction of TCPAff objects
-    # :param cryptor:   used in construction of TCPAff objects
-    def __init__(self, listen_addr, listen_port, plain_mod=True, cryptor=None):
+    def __init__(self, listen_addr, listen_port, plain_mod=False, blocking=False):
         self.listen_addr = listen_addr
         self.listen_port = listen_port
+        self._plain_mod = plain_mod
+        self._blocking = blocking
 
         self._sock = self.create_socket()
         self.fd = self._sock.fileno()
-
-        self._plain_mod = plain_mod
-        self._cryptor = cryptor
 
     def create_socket(self):
         af, type_, proto, canon, sa = socket.getaddrinfo(
@@ -221,7 +217,7 @@ class TCPServerAff():
         return sock
 
     def setsockopt(self, sock):
-        sock.setblocking(False)
+        sock.setblocking(self._blocking)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def listen(self):
@@ -233,17 +229,13 @@ class TCPServerAff():
         self._sock.close()
         self._sock = None
 
-    def accept(self):
-        try:
-            conn, src = self._sock.accept()
-        except OSError as e:
-            if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
-                raise TryAgain()
-            else:
-                raise e
+    def _new_cryptor(self):
+        if self._plain_mod:
+            return None
+        else:
+            return CryptoHelper.new_stream_cryptor()
 
-        return TCPAff(conn, src, self._plain_mod, self._cryptor)
-
+    # accept as raw materials, returns what socket.accept() returns
     def accept_raw(self):
         try:
             return self._sock.accept()
@@ -252,3 +244,15 @@ class TCPServerAff():
                 raise TryAgain()
             else:
                 raise e
+
+    # accept as a help-duplex connection object (TCPAff)
+    def accept_hdx(self):
+        conn, src = self.accept_raw()
+
+        return TCPAff(
+            conn,
+            src,
+            self._plain_mod,
+            self._new_cryptor(),
+            self._blocking,
+        )

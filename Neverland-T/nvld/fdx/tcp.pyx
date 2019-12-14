@@ -1,7 +1,7 @@
 import os
 
-from ..aff.tcp import TCPAff
 from ..eff.tcp import TCPEff
+from ..aff.tcp import TCPAff, TCPServerAff
 from ..utils.misc import errno_from_socket
 
 
@@ -109,3 +109,16 @@ class FDXTCPConn():
     @property
     def traffic_send_realtime_span(self):
         return self._eff.traffic_send_realtime_span
+
+
+class FDXTCPServerAff(TCPServerAff):
+
+    def accept_fdx(self):
+        conn, src = self.accept_raw()
+        return FDXTCPConn(
+            conn,
+            src,
+            self._plain_mod,
+            self._new_cryptor(),
+            self._blocking,
+        )
