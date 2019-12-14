@@ -78,13 +78,13 @@ class NLSwirl():
     #
     # :param remote: the socket address of a remote node to communicate
     # :param conn_cnt: maximum of TCP connections in the channel
-    # :param bandwidth: the bandwidth of the channel, bytes per sec
     # :param poller: an instance of the event poller which is in use
-    def __init__(self, remote, conn_cnt, bandwidth, poller):
+    # :param bandwidth: the bandwidth of the channel, bytes per sec
+    def __init__(self, remote, conn_cnt, poller, bandwidth=None):
         self._remote = remote
         self._conn_cnt = conn_cnt
-        self._bandwidth = bandwidth
         self._poller = poller
+        self._bandwidth = bandwidth or GLBInfo.config.net.traffic.nls_channel_bw
 
         self._io_helper = NonblockingTCPIOHelper(self._poller)
         self._conn_max_retry = GLBInfo.config.net.tcp.conn_max_retry
@@ -541,9 +541,8 @@ class NLSChannelFiller():
 
         self._running = False
 
-        # TODO: should be configurable
-        self._fdata_len_min = 1024
-        self._fdata_len_max = 10240
+        self._fdata_len_min = GLBInfo.config.net.traffic.nls_fdata_size_min
+        self._fdata_len_max = GLBInfo.config.net.traffic.nls_fdata_size_max
 
         self._traffic_calc_span = GLBInfo.config.net.traffic.calc_span
 
