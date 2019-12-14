@@ -35,7 +35,9 @@
 
 		"traffic": {
 			"calc_span": 0.1,
-			"channel_bw": 100000
+			"nls_channel_bw": 100000,
+			"nls_fdata_size_min": 1024,
+			"nls_fdata_size_max": 10240
 		}
 	},
 

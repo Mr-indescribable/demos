@@ -15,7 +15,6 @@ GLBComponent.div_mgr = div_mgr
 
 crypto_config_dict = {
     'net': {
-        'identification': 'testing-node',
         'crypto': {
             'password': 'The_P@5sw0RD',
             'stream_cipher': None,  # should be overridden later
@@ -23,7 +22,6 @@ crypto_config_dict = {
             'salt_len': 8,
             'iv_len': 12,
             'iv_duration_range': [1000, 2000],
-            'lib_path': None # should be overridden too if needed
         }
     }
 }
