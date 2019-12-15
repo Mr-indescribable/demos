@@ -210,7 +210,7 @@ class NLSwirl():
             errno = errno_from_exception(e)
             raise TCPError(os.strerror(errno))
 
-    def _remove_conn(self, fd):
+    def _remove_conn_with_lock(self, fd):
         lock = self._conn_lk_map.get(fd)
 
         with lock:
@@ -338,11 +338,9 @@ class NLSwirl():
 
     # closes all connections within the channel
     def close_channel(self):
-        for fd in self._fds:
-            lock = self._conn_lk_map.get(fd)
-
-            with lock:
-                self._remove_conn(fd)
+        # self._fds will get changed during the removal
+        for fd in tuple(self._fds):
+            self._remove_conn_with_lock(fd)
 
     # adds a connection into the channel
     # used on the connection-accepting side
@@ -388,6 +386,7 @@ class NLSwirl():
 
     # event handler of EV_IN
     def handle_in(self, fd):
+        got_pkt = False
         conn = self._conn_map.get(fd)
         state = self._conn_st_map.get(fd)
 
@@ -406,7 +405,7 @@ class NLSwirl():
                 return
             except ConnectionLost:
                 self._extract_missing_pkt(fd)
-                self._remove_conn(fd)
+                self._remove_conn_with_lock(fd)
 
                 if self._is_initiator and self._reconn_enabled:
                     self._reconnect()
@@ -423,13 +422,18 @@ class NLSwirl():
                     # checking if we have sufficient data
                     try:
                         pkt_bt = TCPPacketHelper.pop_packet(conn)
+                        got_pkt = True
                     except TryAgain:
                         return
         else:
             try:
                 pkt_bt = self._io_helper.handle_recv(conn)
+                got_pkt = True
             except TryAgain:
                 return
+
+        if not got_pkt:
+            return
 
         try:
             pkt = TCPPacketHelper.bytes_2_pkt(pkt_bt)
@@ -504,7 +508,7 @@ class NLSwirl():
     # we must try to reconnect.
     def handle_rdhup(self, fd):
         self._extract_missing_pkt(fd)
-        self._remove_conn(fd)
+        self._remove_conn_with_lock(fd)
 
         if self._is_initiator:
             if self._reconn_enabled:
@@ -515,7 +519,7 @@ class NLSwirl():
     # event hander of EV_HUP
     def handle_hup(self, fd):
         self._extract_missing_pkt(fd)
-        self._remove_conn(fd)
+        self._remove_conn_with_lock(fd)
 
         if self._is_initiator:
             if self._reconn_enabled:
@@ -532,7 +536,7 @@ class NLSwirl():
         state = self._conn_st_map.get(fd)
         errmsg = conn.get_socket_errmsg()
 
-        self._remove_conn(fd)
+        self._remove_conn_with_lock(fd)
         logger.warn(
             f'EV_ERR encountered, errmsg: {errmsg}, remote: {self._rmt_addr}'
         )

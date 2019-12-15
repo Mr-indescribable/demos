@@ -262,7 +262,9 @@ class TCPPacketWrapper(_PacketWrapper):
         elif proto == PktProto.UDP:
             return GLBPktFmt.udp_data
 
-        raise InvalidPkt('Cannot find format for the packet')
+        raise InvalidPkt(
+            f'Cannot find format for packet with proto={proto}, type={type_}'
+        )
 
     def _parse_tcp_pkt(self, pkt):
         self._spliter.reset()

@@ -53,8 +53,6 @@ class FDXTCPConn():
     def destroy(self):
         self._conn.close()
         self._sock = None
-        self._aff = None
-        self._err = None
 
     def get_socket_errno(self):
         return errno_from_socket(self._conn)
