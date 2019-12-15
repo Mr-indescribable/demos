@@ -1,6 +1,7 @@
 import os
 import time
 import random
+import logging
 from threading import Lock
 
 from ..glb import GLBInfo
@@ -26,13 +27,16 @@ from ..exceptions import (
 )
 
 
+logger = logging.getLogger('NLS')
+
+
 class NLSConnState(metaclass=MetaEnum):
 
     INIT         = 0x00  # the initial state of connections
-    CONNECTING   = 0x01  # in the the first time of establishing connection
+    CONNECTING   = 0x01  # establishing new connection
     CONNECTED    = 0x02  # the connection is ready to use
     DISCONNECTED = 0x03  # the connection is closed
-    RECONNECTING = 0x04  # re-establishing the lost connection
+    RECONNECTING = 0x04  # re-establishing lost connection
 
 
 # When the continuity of the sn is broken and the peer is still sending
@@ -76,14 +80,22 @@ class NLSwirl():
 
     # Constructor
     #
-    # :param remote: the socket address of a remote node to communicate
-    # :param conn_cnt: maximum of TCP connections in the channel
     # :param poller: an instance of the event poller which is in use
+    # :param is_initiator: indicate the current instance is an initiator
+    #                      or receiver, if is_initiator is False, then
+    #                      the argument conn_num may be None.
+    # :param remote: socket address of a remote node to communicate,
+    #                if is_initiator is False, then the port may be None
+    # :param conn_num: the maximum of TCP connections in the channel,
+    #                  only affects the initiator since the connection
+    #                  number is maintained by the initiator.
     # :param bandwidth: the bandwidth of the channel, bytes per sec
-    def __init__(self, remote, conn_cnt, poller, bandwidth=None):
-        self._remote = remote
-        self._conn_cnt = conn_cnt
+    def __init__(self, poller, is_initiator, remote, conn_num, bandwidth=None):
         self._poller = poller
+        self._is_initiator = is_initiator
+        self._remote = remote
+        self._rmt_addr = self._remote[0]
+        self._conn_num = conn_num
         self._bandwidth = bandwidth or GLBInfo.config.net.traffic.nls_channel_bw
 
         self._io_helper = NonblockingTCPIOHelper(self._poller)
@@ -97,11 +109,11 @@ class NLSwirl():
         # will be disconnected for some expected reasons sooner or later.
         # And this is never supposed to be happened, so, the reconnecting
         # should always be enabled.
-        self._reconn_enabled = True if self._conn_max_retry > 0 else False
+        self._reconn_enabled = self._conn_max_retry > 0
 
         # event set
         self._evs_in  = self._poller.DEFAULT_EV
-        self._evs_out = self._ev_in | self._poller.EV_OUT
+        self._evs_out = self._evs_in | self._poller.EV_OUT
 
         # An event for the Filler to wait, the filler should not
         # start filling the channel until receiving this event.
@@ -137,7 +149,8 @@ class NLSwirl():
 
         # When number of awoken connection less than this,
         # we should perform an awakening. (if there is data to be sent)
-        self._awk_threshold = 1 if self._conn_cnt <= 3 else self._conn_cnt // 2
+        if self._is_initiator:
+            self._awk_threshold = 1 if conn_num <= 3 else conn_num // 2
 
         # corresponds to the sn field in the header of the last
         # TCP packet appended into self._pkt_recv_buf
@@ -310,18 +323,22 @@ class NLSwirl():
             return
 
         if pkt.fields.type == PktTypes.DATA and pkt.fields.fake:
-            return  # this is easier to read
+            return  # this would be easier to read
         else:
             self._missing_pkt.append(pkt)
+            self._awake_conns()
 
     # makes connection with other node
     def build_channel(self):
-        for _ in range(self._conn_cnt):
+        if not self._is_initiator:
+            raise TypeError('wrong type of NLS')
+
+        for _ in range(self._conn_num):
             self._new_conn()
 
     # closes all connections within the channel
     def close_channel(self):
-        for fd, conn in self._conn_map.items():
+        for fd in self._fds:
             lock = self._conn_lk_map.get(fd)
 
             with lock:
@@ -355,6 +372,20 @@ class NLSwirl():
         self._pkt_cache.update({sn: pkt})
         self._awake_conns()
 
+    def handle_ev(self, fd, ev):
+        if   ev & self._poller.EV_IN:
+            return self.handle_in(fd)
+        elif ev & self._poller.EV_OUT:
+            return self.handle_out(fd)
+        elif ev & self._poller.EV_RDHUP:
+            return self.handle_rdhup(fd)
+        elif ev & self._poller.EV_HUP:
+            return self.handle_hup(fd)
+        elif ev & self._poller.EV_ERR:
+            return self.handle_err(fd)
+        else:
+            logger.warn(f'Unregistered event {ev}')
+
     # event handler of EV_IN
     def handle_in(self, fd):
         conn = self._conn_map.get(fd)
@@ -377,7 +408,7 @@ class NLSwirl():
                 self._extract_missing_pkt(fd)
                 self._remove_conn(fd)
 
-                if self._reconn_enabled:
+                if self._is_initiator and self._reconn_enabled:
                     self._reconnect()
 
             if conn.recv_buf_bts > 3:
@@ -406,10 +437,21 @@ class NLSwirl():
             # same as above, we can only close the channel
             self._on_remote_error()
 
-        if pkt.fields.sn > self._sn:
-            self._buff_pkt(pkt)
+        # drop fake packet
+        if pkt.fields.fake:
+            return
 
-        if len(self.__shift_recvd_pkt) > NLS_UNCONTINUOUS_SN_THRESHOLD:
+        # drop already received packet
+        if pkt.fields.sn <= self._sn:
+            return
+
+        self._buff_pkt(pkt)
+        self.__shift_recvd_pkt()
+
+        if len(self.__internal_recv_buf) > NLS_UNCONTINUOUS_SN_THRESHOLD:
+            logger.error(
+                f'NLS_UNCONTINUOUS_SN_THRESHOLD reached, peer: {self._rmt_addr}'
+            )
             self._on_remote_error()
 
     # event hander of EV_OUT
@@ -429,9 +471,12 @@ class NLSwirl():
         # to a connection, because it's not totally sent out at that time.
         # Now it's the time that the transmission has been completed.
         # And we should remove the last packet by the way.
-        last_pkt = self._conn_ct_map.pop(fd)
-        if last_pkt.fields.type == PktTypes.DATA and last_pkt.fields.fake:
-            self._fpkt_total_bytes -= last_pkt.fields.len
+        if fd in self._conn_ct_map:
+            last_pkt = self._conn_ct_map.pop(fd)
+            if last_pkt.fields.type == PktTypes.DATA and last_pkt.fields.fake:
+                self._fpkt_total_bytes -= last_pkt.fields.len
+        else:
+            last_pkt = None
 
         # while we have data to send, we don't need to wait for the
         # filler to fill the channel anyway, NLSwirl itself should
@@ -449,8 +494,8 @@ class NLSwirl():
 
         # the helper will help us to do the event-changing job
         # if there is no data to send
-        auto_modify_ev = False if self._has_pkts_to_send() else True
-        self._io_helper.handle_send_ex(conn, auto_modify_ev)
+        auto_modify_ev = not self._has_pkts_to_send()
+        self._io_helper.handle_send_ex(conn, auto_modify_ev=auto_modify_ev)
 
     # event hander of EV_RDHUP
     #
@@ -461,20 +506,22 @@ class NLSwirl():
         self._extract_missing_pkt(fd)
         self._remove_conn(fd)
 
-        if self._reconn_enabled:
-            self._reconnect()
-        else:
-            raise TCPError('Connection closed by remote')
+        if self._is_initiator:
+            if self._reconn_enabled:
+                self._reconnect()
+            else:
+                raise TCPError('Connection closed by remote')
 
     # event hander of EV_HUP
     def handle_hup(self, fd):
         self._extract_missing_pkt(fd)
         self._remove_conn(fd)
 
-        if self._reconn_enabled:
-            self._reconnect()
-        else:
-            raise TCPError('Connection closed by both remote and local')
+        if self._is_initiator:
+            if self._reconn_enabled:
+                self._reconnect()
+            else:
+                raise TCPError('Connection closed by both remote and local')
 
     # event hander of EV_ERR
     def handle_err(self, fd):
@@ -486,22 +533,26 @@ class NLSwirl():
         errmsg = conn.get_socket_errmsg()
 
         self._remove_conn(fd)
+        logger.warn(
+            f'EV_ERR encountered, errmsg: {errmsg}, remote: {self._rmt_addr}'
+        )
 
-        if (
-            state == NLSConnState.CONNECTING or
-            state == NLSConnState.CONNECTED
-        ):
-            if self._reconn_enabled:
-                self._reconnect()
-            else:
-                raise TCPError(errmsg)
-        elif state == NLSConnState.RECONNECTING:
-            self._conn_retried += 1
+        if self._is_initiator:
+            if (
+                state == NLSConnState.CONNECTING or
+                state == NLSConnState.CONNECTED
+            ):
+                if self._reconn_enabled:
+                    self._reconnect()
+                else:
+                    raise TCPError(errmsg)
+            elif state == NLSConnState.RECONNECTING:
+                self._conn_retried += 1
 
-            if self._conn_retried < self._conn_max_retry:
-                self._reconnect()
-            else:
-                raise TCPError(errmsg)
+                if self._conn_retried < self._conn_max_retry:
+                    self._reconnect()
+                else:
+                    raise TCPError(errmsg)
 
     def pop_pkt(self):
         if len(self._pkt_recv_buf) > 0:
@@ -510,8 +561,8 @@ class NLSwirl():
             raise TryAgain('no more packets')
 
     @property
-    def conn_cnt(self):
-        return self._conn_cnt
+    def conn_num(self):
+        return self._conn_num
 
     @property
     def fds(self):
@@ -554,7 +605,7 @@ class NLSChannelFiller():
         self._last_bwc_time = time.time()
 
         # start of next bandwidth calculating time span
-        self._next_bwc_span = self._last_bwcalc_time + self._traffic_calc_span
+        self._next_bwc_span = self._last_bwc_time + self._traffic_calc_span
 
         # fd == fake packet
         self.fp_fields = {

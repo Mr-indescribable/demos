@@ -46,8 +46,8 @@ def __with_shm_server(func):
         def shm_subthread():
             server.run()
 
-        th = threading.Thread(target=shm_subthread)
-        th.start()
+        thr = threading.Thread(target=shm_subthread)
+        thr.start()
 
         try:
             func_r = func(*args, **kwargs)
@@ -55,7 +55,7 @@ def __with_shm_server(func):
             # We must wait for the server to shutdown,
             # otherwise the socket file is occupied.
             server.shutdown()
-            th.join()
+            thr.join()
 
         return func_r
 

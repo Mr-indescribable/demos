@@ -224,6 +224,7 @@ class TCPServerAff():
         self._sock.bind(
             (self.listen_addr, self.listen_port)
         )
+        self._sock.listen()
 
     def destroy(self):
         self._sock.close()

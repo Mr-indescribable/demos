@@ -13,6 +13,7 @@ MAIN_LOGGER_CONFIG_KW = 'main'
 MAIN_LOG_LOGGERS = [
     'Main',
     'Node',
+    'NLS',
     'Core',
     'Afferent',
     'Efferent',
