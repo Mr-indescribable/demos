@@ -71,9 +71,17 @@ def test_nid():
     nid_mgr = NIDMgr()
 
     conf_data = json.dumps(data_2_test).encode()
-    nid_data = nid_mgr.gen_nid_data(conf_data)
+    nid_0, div_used_0 = nid_mgr.gen_nid_data(conf_data)
 
-    div_data, parsed_conf_data = nid_mgr.parse_nid_data(nid_data)
+    div_0, parsed_conf_0 = nid_mgr.parse_nid_data(nid_0)
 
-    assert conf_data == parsed_conf_data
-    assert len(div_data) == len(conf_data)
+    assert div_0 == div_used_0
+    assert conf_data == parsed_conf_0
+    assert len(div_0) == len(conf_data)
+
+    nid_1, div_used_1 = nid_mgr.gen_nid_data(conf_data, div_used_0)
+    div_1, parsed_conf_1 = nid_mgr.parse_nid_data(nid_1)
+
+    assert div_1 == div_used_1
+    assert div_used_1 == div_used_0
+    assert conf_data == parsed_conf_1

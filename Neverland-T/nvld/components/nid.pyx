@@ -186,27 +186,43 @@ cdef class NIDMgr():
 
         return self.__bu_buf[0:1], self.__bu_buf[1:2]
 
-    def gen_nid_data(self, conf_data):
+    def gen_nid_data(self, conf_data, div_data=None):
         data = b''
         conf_len = len(conf_data)
 
-        iv_stream = self._div_mgr.gen(conf_len)
+        div = div_data if div_data else self._div_mgr.gen(conf_len)
 
         for i in range(0, conf_len):
             b_cf = conf_data[i: i + 1]
-            b_iv = iv_stream[i: i + 1]
+            b_iv = div[i: i + 1]
             data += self.bit_cross(b_iv, b_cf)
 
-        return data
+        return data, div
 
-    def gen_nid_file(self, conf_file, nid_file):
+    # :param conf_file: the config file to read
+    # :param nid_file: the .nid file to output
+    # :param div_file: use the provided data as default iv set
+    #                  instead of using random data
+    def gen_nid_file(self, conf_file, nid_file, div_file=None):
+        div_file_provided = bool(div_file)
+
+        if div_file_provided:
+            with open(div_file, 'rb') as divf:
+                div_data = divf.read()
+        else:
+            div_data = None
+
         with open(conf_file, 'rb') as cf:
             conf_data = cf.read()
 
-        data = self.gen_nid_data(conf_data)
+        nid, div = self.gen_nid_data(conf_data, div_data)
 
         with open(nid_file, 'wb') as nf:
-            nf.write(data)
+            nf.write(nid)
+
+        if not div_file_provided:
+            with open(nid_file + '.div', 'wb') as divf:
+                divf.write(div)
 
     def parse_nid_data(self, nid_data):
         div_data = b''

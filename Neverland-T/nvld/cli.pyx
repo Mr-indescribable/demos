@@ -31,6 +31,11 @@ def parse_cli_args():
         help='Specify the NID file. default: ./nvld.nid',
     )
     argp.add_argument(
+        '-i',
+        metavar='<path>',
+        help='Specify the DIV file.',
+    )
+    argp.add_argument(
         '-j',
         metavar='<path>',
         default='./nvld.json',
@@ -64,16 +69,16 @@ def mkdirs(config):
             Shell.mkdir(d)
 
 
-def gen_nid(json_f, nid_f):
+def gen_nid(json_f, nid_f, div_f=None):
     nid_mgr = NIDMgr()
-    nid_mgr.gen_nid_file(json_f, nid_f)
+    nid_mgr.gen_nid_file(json_f, nid_f, div_f)
 
 
 def main():
     args = parse_cli_args()
 
     if args.action == 'gennid':
-        gen_nid(args.j, args.n)
+        gen_nid(args.j, args.n, args.i)
         exit(0)
 
     ginit_glb_info(args)
