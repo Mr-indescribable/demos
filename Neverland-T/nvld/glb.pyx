@@ -17,6 +17,7 @@ class GLBPktFmt:
     _INITED = False
 
     tcp_data      = None
+    tcp_iv_ctrl   = None
     tcp_conn_ctrl = None
     tcp_clst_ctrl = None
 

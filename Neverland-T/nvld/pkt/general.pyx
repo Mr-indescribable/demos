@@ -12,11 +12,14 @@ class PktTypes(metaclass=MetaEnum):
     # Normal data packets, used in transfering data from applications
     DATA = 0x01
 
-    # Connection controlling packets, used in managing TCP connections
-    CONN_CTRL = 0x02
+    # IV control packets, used in managing IV of TCP connections
+    IV_CTRL = 0x02
 
-    # Cluster controlling packets, used in communicating with other nodes
-    CLST_CTRL = 0x03
+    # Connection control packets, used in managing TCP connections
+    CONN_CTRL = 0x03
+
+    # Cluster control packets, used in communicating with other nodes
+    CLST_CTRL = 0x04
 
 
 class FieldTypes(metaclass=MetaEnum):

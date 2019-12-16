@@ -141,6 +141,21 @@ class TCPDataPktFormat(BasePktFormat):
         }
 
 
+# The format of IV control packets' body
+class TCPIVCtrlPktFormat(BasePktFormat):
+
+    __type__ = PktTypes.IV_CTRL
+
+    @classmethod
+    def gen_fmt(cls):
+        cls.__fmt__ = {
+            'iv': FieldDefinition(
+                      length = SpecialLength.TCP_EXCEPT_DELIM,
+                      type   = FieldTypes.PY_BYTES,
+                  ),
+        }
+
+
 # The format of connection controlling packets' body
 class TCPConnCtrlPktFormat(BasePktFormat):
 

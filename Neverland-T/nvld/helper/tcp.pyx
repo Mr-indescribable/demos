@@ -54,6 +54,14 @@ class TCPConnHelper():
                 else:
                     raise e
 
+    @classmethod
+    def initiate_handshake(cls, conn):
+        pass
+
+    @classmethod
+    def accept_handshake(cls, conn):
+        pass
+
 
 class TCPPacketHelper():
 

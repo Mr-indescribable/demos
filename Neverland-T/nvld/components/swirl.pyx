@@ -33,10 +33,12 @@ logger = logging.getLogger('NLS')
 class NLSConnState(metaclass=MetaEnum):
 
     INIT         = 0x00  # the initial state of connections
-    CONNECTING   = 0x01  # establishing new connection
-    CONNECTED    = 0x02  # the connection is ready to use
-    DISCONNECTED = 0x03  # the connection is closed
-    RECONNECTING = 0x04  # re-establishing lost connection
+    RECONNECTING = 0x01  # re-establishing lost connection
+    CONNECTING   = 0x02  # establishing new connection
+    CONNECTED    = 0x03  # connected but not ready to be used
+    HANDSHAKING  = 0x04  # performing a handshake upon the transport layer
+    READY        = 0x05  # ready for transmission
+    DISCONNECTED = 0x0f  # the connection is closed
 
 
 # When the continuity of the sn is broken and the peer is still sending
@@ -397,6 +399,7 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
+            # TODO: handshake
 
         if conn.next_blk_size is None:
             try:
@@ -468,6 +471,7 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
+            # TODO: handshake
 
         # We need to check the last packet sent by the current connection,
         # if it's a fake packet, then we need to reduce self._fpkt_total_bytes.
@@ -542,18 +546,15 @@ class NLSwirl():
         )
 
         if self._is_initiator:
-            if (
-                state == NLSConnState.CONNECTING or
-                state == NLSConnState.CONNECTED
-            ):
-                if self._reconn_enabled:
-                    self._reconnect()
-                else:
-                    raise TCPError(errmsg)
-            elif state == NLSConnState.RECONNECTING:
+            if state == NLSConnState.RECONNECTING:
                 self._conn_retried += 1
 
                 if self._conn_retried < self._conn_max_retry:
+                    self._reconnect()
+                else:
+                    raise TCPError(errmsg)
+            else:
+                if self._reconn_enabled:
                     self._reconnect()
                 else:
                     raise TCPError(errmsg)

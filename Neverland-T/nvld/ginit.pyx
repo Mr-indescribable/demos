@@ -14,6 +14,7 @@ from .proto.fmt.tcp import (
     TCPHeaderFormat,
     TCPDelimiterFormat,
     TCPDataPktFormat,
+    TCPIVCtrlPktFormat,
     TCPConnCtrlPktFormat,
     TCPClstCtrlPktFormat,
 )
@@ -35,16 +36,22 @@ def ginit_glb_pktfmt():
     TCPHeaderFormat.gen_fmt()
     TCPDelimiterFormat.gen_fmt()
     TCPDataPktFormat.gen_fmt()
+    TCPIVCtrlPktFormat.gen_fmt()
     TCPConnCtrlPktFormat.gen_fmt()
     TCPClstCtrlPktFormat.gen_fmt()
 
     GLBPktFmt.tcp_data      = ComplexedFormat()
+    GLBPktFmt.tcp_iv_ctrl   = ComplexedFormat()
     GLBPktFmt.tcp_conn_ctrl = ComplexedFormat()
     GLBPktFmt.tcp_clst_ctrl = ComplexedFormat()
 
     GLBPktFmt.tcp_data.combine_fmt(TCPHeaderFormat)
     GLBPktFmt.tcp_data.combine_fmt(TCPDataPktFormat)
     GLBPktFmt.tcp_data.combine_fmt(TCPDelimiterFormat)
+
+    GLBPktFmt.tcp_iv_ctrl.combine_fmt(TCPHeaderFormat)
+    GLBPktFmt.tcp_iv_ctrl.combine_fmt(TCPIVCtrlPktFormat)
+    GLBPktFmt.tcp_iv_ctrl.combine_fmt(TCPDelimiterFormat)
 
     GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPHeaderFormat)
     GLBPktFmt.tcp_conn_ctrl.combine_fmt(TCPConnCtrlPktFormat)
@@ -57,10 +64,12 @@ def ginit_glb_pktfmt():
     TCPHeaderFormat.sort_calculators()
     TCPDelimiterFormat.sort_calculators()
     TCPDataPktFormat.sort_calculators()
+    TCPIVCtrlPktFormat.sort_calculators()
     TCPConnCtrlPktFormat.sort_calculators()
     TCPClstCtrlPktFormat.sort_calculators()
 
     GLBPktFmt.tcp_data.sort_calculators()
+    GLBPktFmt.tcp_iv_ctrl.sort_calculators()
     GLBPktFmt.tcp_conn_ctrl.sort_calculators()
     GLBPktFmt.tcp_clst_ctrl.sort_calculators()
 
