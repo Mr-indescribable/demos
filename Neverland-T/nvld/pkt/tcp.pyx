@@ -1,4 +1,5 @@
 from ..utils.od import ODict
+from .general import PktProto
 
 
 # TCP Packet
@@ -40,5 +41,8 @@ class TCPPacket(ODict):
 
         if 'valid' not in kwargs:
             kwargs.update(valid=None)
+
+        # shall always be TCP
+        kwargs.update(proto=PktProto.TCP)
 
         ODict.__init__(self, **kwargs)

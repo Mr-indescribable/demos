@@ -304,7 +304,6 @@ def test_make_n_parse_tcp_pkt():
         'channel_id': 1,
     }
     data_pkt = TCPPacket()
-    data_pkt.proto = PktProto.TCP
     data_pkt.type = PktTypes.DATA
     data_pkt.fields = ODict(**data_pkt_fields)
 
@@ -318,7 +317,6 @@ def test_make_n_parse_tcp_pkt():
         'v4ip': ('127.0.0.1', 100),
     }
     conn_ctrl_pkt = TCPPacket()
-    conn_ctrl_pkt.proto = PktProto.TCP
     conn_ctrl_pkt.type = PktTypes.CONN_CTRL
     conn_ctrl_pkt.fields = ODict(**conn_ctrl_pkt_fields)
 
@@ -330,7 +328,6 @@ def test_make_n_parse_tcp_pkt():
         'args': {'a': 1, 'b': True},
     }
     clst_ctrl_pkt = TCPPacket()
-    clst_ctrl_pkt.proto = PktProto.TCP
     clst_ctrl_pkt.type = PktTypes.CLST_CTRL
     clst_ctrl_pkt.fields = ODict(**clst_ctrl_pkt_fields)
 
@@ -347,7 +344,6 @@ def test_make_n_parse_tcp_pkt():
         wrapped_pkt = packet_wrapper.wrap(original_pkt)
 
         pkt_to_parse = TCPPacket()
-        pkt_to_parse.proto = PktProto.TCP
         pkt_to_parse.data = wrapped_pkt.data
         unwrapped_pkt = packet_wrapper.unwrap(pkt_to_parse)
 

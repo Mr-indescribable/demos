@@ -14,14 +14,6 @@ class PidFileNotExists(FileNotFoundError):
     pass
 
 
-class ConnectionLost(Exception):
-    pass
-
-
-class NLSChannelClosed(Exception):
-    pass
-
-
 class NotEnoughData(Exception):
     pass
 
@@ -39,6 +31,10 @@ class InvalidPkt(Exception):
 
 
 class DecryptionFailed(InvalidPkt):
+    pass
+
+
+class InvalidIV(InvalidPkt):
     pass
 
 
@@ -69,4 +65,20 @@ class TryAgain(Info):
 
 
 class TCPError(Exception):
+    pass
+
+
+class ConnectionLost(TCPError):
+    pass
+
+
+class NLSChannelClosed(TCPError):
+    pass
+
+
+class NLSRemoteError(NLSChannelClosed):
+    pass
+
+
+class NLSHandShakeError(NLSRemoteError):
     pass

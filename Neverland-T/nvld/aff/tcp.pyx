@@ -132,6 +132,15 @@ class TCPAff():
 
         self._cryptor = cryptor
 
+    def update_iv(self, iv):
+        if self._plain_mod:
+            raise RuntimeError(
+                "TCPAff cannot be changed from plain mode to encrypting mode"
+            )
+
+        cryptor = CryptoHelper.new_stream_cryptor(iv=iv)
+        self.update_cryptor(cryptor)
+
     def set_next_blk_size(self, blk_size):
         self._next_blk_size = blk_size
 

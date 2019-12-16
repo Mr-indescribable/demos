@@ -6,6 +6,7 @@ import logging
 
 from ..glb import GLBInfo
 from ..utils.misc import errno_from_exception, errno_from_socket
+from ..helper.crypto import CryptoHelper
 
 
 logger = logging.getLogger('Main')
@@ -123,10 +124,19 @@ class TCPEff():
     def update_cryptor(self, cryptor):
         if self._plain_mod:
             raise RuntimeError(
-                "TCPAff cannot be changed from plain mode to encrypting mode"
+                "TCPEff cannot be changed from plain mode to encrypting mode"
             )
 
         self._cryptor = cryptor
+
+    def update_iv(self, iv):
+        if self._plain_mod:
+            raise RuntimeError(
+                "TCPEff cannot be changed from plain mode to encrypting mode"
+            )
+
+        cryptor = CryptoHelper.new_stream_cryptor(iv=iv)
+        self.update_cryptor(cryptor)
 
     def get_socket_errno(self):
         return errno_from_socket(self._sock)

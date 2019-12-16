@@ -54,14 +54,6 @@ class TCPConnHelper():
                 else:
                     raise e
 
-    @classmethod
-    def initiate_handshake(cls, conn):
-        pass
-
-    @classmethod
-    def accept_handshake(cls, conn):
-        pass
-
 
 class TCPPacketHelper():
 
@@ -94,7 +86,6 @@ class TCPPacketHelper():
     def bytes_2_pkt(cls, data):
         pkt = TCPPacket()
         pkt.data = data
-        pkt.proto = PktProto.TCP
         return cls.unwrap(pkt)
 
     @classmethod

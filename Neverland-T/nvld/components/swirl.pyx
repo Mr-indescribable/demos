@@ -4,13 +4,13 @@ import random
 import logging
 from threading import Lock
 
-from ..glb import GLBInfo
+from ..glb import GLBInfo, GLBComponent
 from ..pkt.tcp import TCPPacket
 from ..pkt.general import PktTypes, PktProto
 from ..utils.ev import DisposableEvent
 from ..utils.fifo import NLFifo
 from ..utils.enumeration import MetaEnum
-from ..utils.misc import errno_from_exception
+from ..utils.misc import VerifiTools, errno_from_exception
 from ..fdx.tcp import FDXTCPConn
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
@@ -21,9 +21,13 @@ from ..helper.tcp import (
 from ..exceptions import (
     TCPError,
     TryAgain,
+    InvalidIV,
     InvalidPkt,
     ConnectionLost,
-    NLSChannelClosed,
+    DecryptionFailed,
+    # NLSChannelClosed,
+    NLSRemoteError,
+    NLSHandShakeError,
 )
 
 
@@ -144,6 +148,7 @@ class NLSwirl():
         self._conn_lk_map = {}  # fd-to-lock mapping
         self._conn_st_map = {}  # fd-to-state mapping
         self._conn_ct_map = {}  # fd-to-CurrentlyTransmittingPkt mapping
+        self._conn_iv_map = {}  # fd-to-CurrentlyIV mapping
         self._conn_retried = 0  # retried times of reconnecting
         self._avai_conns = 0    # currently available connections
         self._avai_fds = []     # currently available fds
@@ -163,6 +168,14 @@ class NLSwirl():
 
         # A FIFO queue that contains all SN in self._pkt_cache
         self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
+
+        # fields template of handshake packet
+        self._hs_pktf_temp = {
+            'sn': 0,
+            'type': PktTypes.IV_CTRL,
+            'dest': ('0.0.0.0', 0),
+            'iv': None,
+        }
 
     def _has_pkts_to_send(self):
         return (
@@ -234,6 +247,9 @@ class NLSwirl():
             if fd in self._conn_ct_map:
                 self._conn_ct_map.pop(fd)
 
+            if fd in self._conn_iv_map:
+                self._conn_iv_map.pop(fd)
+
     def _add_conn(self, conn, state):
         fd = conn.fd
         lock = Lock()
@@ -258,11 +274,79 @@ class NLSwirl():
         fd = self._new_conn()
         self._conn_st_map[fd] = NLSConnState.RECONNECTING
 
+    # the initiator initiates the handshake
+    # sends a new IV to the receiver and set connection state to HANDSHAKING
+    def _initiate_handshake(self, fd):
+        lock = self._conn_lk_map.get(fd)
+
+        with lock:
+            new_iv = GLBComponent.div_mgr.random_stmc_div()
+            conn = self._conn_map.get(fd)
+            self._conn_iv_map[fd] = new_iv
+            self._conn_st_map[fd] = NLSConnState.HANDSHAKING
+
+            self._hs_pktf_temp.udpate(iv=new_iv)
+            iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
+            TCPPacketHelper.wrap(iv_pkt)
+
+            self._io_helper.handle_send(conn, iv_pkt.data)
+
+    # the receiver accepts the IV from the initiator and
+    # reply it with an ACK.
+    #
+    # the pkt should be validated by the invoker,
+    # and type of the packet must be IV_CTRL.
+    def _accept_handshake(self, fd, pkt):
+        new_iv = pkt.fields.iv
+        lock = self._conn_lk_map.get(fd)
+
+        with lock:
+            conn = self._conn_map.get(fd)
+            self._conn_iv_map[fd] = new_iv
+
+            self._hs_pktf_temp.udpate(iv=new_iv)
+            iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
+            TCPPacketHelper.wrap(iv_pkt)
+
+            self._io_helper.handle_send(conn, iv_pkt.data)
+
+            try:
+                conn.update_iv(new_iv)
+            except InvalidIV:
+                raise NLSHandShakeError('invalid IV')
+
+            # After this, we can safely declare that the connection is ready no
+            # matter if the packet has been completely sent to the other side.
+            # Because the data is only encrypted when it's appended into
+            # the efferent's buffer.
+            self._conn_st_map[fd] = NLSConnState.READY
+            self._avai_fds.append(fd)
+            self._avai_conns += 1
+
+    # the initiator receives the ACK and finishes the handshake
+    #
+    # the pkt should be validated by the invoker,
+    # and type of the packet must be IV_CTRL.
+    def _finish_handshake(self, fd, pkt):
+        ack_iv = pkt.fields.iv
+        iv = self._conn_iv_map.get(fd)
+
+        if iv != ack_iv:
+            raise NLSHandShakeError('IV in the handshake ACK is wrong')
+
+        lock = self._conn_lk_map.get(fd)
+
+        with lock:
+            conn = self._conn_map.get(fd)
+            conn.update_iv(iv)
+
+            self._conn_st_map[fd] = NLSConnState.READY
+            self._avai_fds.append(fd)
+            self._avai_conns += 1
+
     def _on_connected(self, fd):
         self._conn_retried = 0
         self._conn_st_map[fd] = NLSConnState.CONNECTED
-        self._avai_fds.append(fd)
-        self._avai_conns += 1
 
         if not self._ready_ev_triggered:
             self._ready_ev.trigger()
@@ -271,7 +355,7 @@ class NLSwirl():
     # when the remote node sends something incorrect
     def _on_remote_error(self):
         self.close_channel()
-        raise NLSChannelClosed('Remote node does not work properly')
+        raise NLSRemoteError('Remote node does not work properly')
 
     def _alloc_pkt_with_lock(self, fd, pkt):
         lock = self._conn_lk_map.get(fd)
@@ -319,6 +403,9 @@ class NLSwirl():
         self.__shift_recvd_pkt()
 
     def _extract_missing_pkt(self, fd):
+        if self._conn_st_map.get(fd) != NLSConnState.READY:
+            return
+
         pkt = self._conn_ct_map.get(fd)
 
         if pkt is None:
@@ -389,6 +476,8 @@ class NLSwirl():
     # event handler of EV_IN
     def handle_in(self, fd):
         got_pkt = False
+        accepting_handshake = False
+        expecting_hs_ack = False
         conn = self._conn_map.get(fd)
         state = self._conn_st_map.get(fd)
 
@@ -399,20 +488,35 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
-            # TODO: handshake
+
+            if self._is_initiator:
+                self._initiate_handshake(fd)
+                return
+            else:
+                accepting_handshake = True
+        elif state == NLSConnState.HANDSHAKING and self._is_initiator:
+            expecting_hs_ack = True
+        elif state == NLSConnState.DISCONNECTED:
+            return
+        elif state != NLSConnState.READY:
+            raise RuntimeError('connection state error')
+
+        try:
+            conn.recv()
+        except TryAgain:
+            return
+        except ConnectionLost:
+            self._extract_missing_pkt(fd)
+            self._remove_conn_with_lock(fd)
+
+            if self._is_initiator and self._reconn_enabled:
+                self._reconnect()
+
+            return
+        except DecryptionFailed:
+            self._on_remote_error()
 
         if conn.next_blk_size is None:
-            try:
-                conn.recv()
-            except TryAgain:
-                return
-            except ConnectionLost:
-                self._extract_missing_pkt(fd)
-                self._remove_conn_with_lock(fd)
-
-                if self._is_initiator and self._reconn_enabled:
-                    self._reconnect()
-
             if conn.recv_buf_bts > 3:
                 try:
                     TCPPacketHelper.identify_next_blk_len(conn)
@@ -428,6 +532,8 @@ class NLSwirl():
                         got_pkt = True
                     except TryAgain:
                         return
+            else:
+                return
         else:
             try:
                 pkt_bt = self._io_helper.handle_recv(conn)
@@ -443,6 +549,31 @@ class NLSwirl():
         except InvalidPkt:
             # same as above, we can only close the channel
             self._on_remote_error()
+
+        # check packet type for handshake logic
+        #
+        # in this case, the first packet must be an IV_CTRL packet,
+        # otherwise, the remote node is not working properly.
+        if accepting_handshake or expecting_hs_ack:
+            if pkt.fields.type != PktTypes.IV_CTRL:
+                logger.error(
+                    f'remote node {self._rmt_addr} didn\'t perform a handshake'
+                )
+                self._on_remote_error()
+
+        if accepting_handshake:
+            try:
+                self._accept_handshake(fd, pkt)
+            except NLSHandShakeError:
+                self._on_remote_error()
+            return
+
+        if expecting_hs_ack:
+            try:
+                self._finish_handshake(fd, pkt)
+            except NLSHandShakeError:
+                self._on_remote_error()
+            return
 
         # drop fake packet
         if pkt.fields.fake:
@@ -471,7 +602,14 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
-            # TODO: handshake
+
+            if self._is_initiator:
+                self._initiate_handshake(fd)
+                return
+        elif state == NLSConnState.DISCONNECTED:
+            return
+        elif state != NLSConnState.READY:
+            raise RuntimeError('connection state error')
 
         # We need to check the last packet sent by the current connection,
         # if it's a fake packet, then we need to reduce self._fpkt_total_bytes.

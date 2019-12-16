@@ -351,4 +351,7 @@ class TCPPacketWrapper(_PacketWrapper):
         if fields.get('rsv') != RESERVED_FIELD_VALUE:
             raise InvalidPkt()
 
+        if fields.get('type') not in PktTypes._values():
+            raise InvalidPkt()
+
         return fields, byte_fields

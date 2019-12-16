@@ -341,7 +341,6 @@ def test_send(recver):
         'dest': ('127.0.0.1', 12345),
     }
     pkt = TCPPacket(fields=pkt_fields)
-    pkt.proto = PktProto.TCP
 
     recver.expect_pkt(pkt)
     nls.append_pkt(pkt)

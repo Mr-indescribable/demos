@@ -142,6 +142,10 @@ class TCPDataPktFormat(BasePktFormat):
 
 
 # The format of IV control packets' body
+#
+# This packet is very simple, and so, the usage is very simple as well.
+# One node transmits an IV to the other side and the other side reply it
+# with the same IV, and then, they are using the same IV.
 class TCPIVCtrlPktFormat(BasePktFormat):
 
     __type__ = PktTypes.IV_CTRL
