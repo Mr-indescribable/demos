@@ -32,13 +32,14 @@ class GLBComponent:
 
     id_generator = None
 
-    default_cryptor = None
-
-    main_tcp_aff = None
-    main_udp_aff = None
+    default_stmc_list = None
+    default_dgmc_list = None
 
     tcp_pkt_wrapper = None
     udp_pkt_wrapper = None
+
+    main_tcp_aff = None
+    main_udp_aff = None
 
     logic_handler = None
 

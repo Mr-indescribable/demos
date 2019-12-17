@@ -12,8 +12,8 @@ class CryptoHelper():
         return DGramCryptor(*args, **kwargs)
 
     # For each TCP connection in the channel within the NLSwirl,
-    # the connection-accepting side must traverse the IV set and
-    # find which one is using by the peer before using the connection.
+    # the connection-accepting side must traverse the default IV set and
+    # find which one is using by the peer before the handshake starts.
     @classmethod
     def find_iv(cls, cryptor):
         pass

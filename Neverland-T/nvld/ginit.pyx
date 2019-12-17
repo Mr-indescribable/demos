@@ -4,6 +4,7 @@
 import logging
 
 from .glb import GLBPktFmt, GLBInfo, GLBComponent
+from .crypto.wrapper import StreamCryptor
 from .components.nid import NIDMgr
 from .components.div import DefaultIVMgr
 from .components.idg import IDGenerator
@@ -104,8 +105,12 @@ def ginit_glb_comp():
 
     GLBComponent.div_mgr = DefaultIVMgr()
     GLBComponent.id_generator = IDGenerator(GLBInfo.config.basic.node_id, 0)
-    GLBComponent.main_tcp_aff = None
-    GLBComponent.main_udp_aff = None
+    GLBComponent.default_stmc_list = [
+        StreamCryptor(iv) for iv in GLBInfo.stmc_div_list
+    ]
+    GLBComponent.default_dgmc_list = None
     GLBComponent.tcp_pkt_wrapper = TCPPacketWrapper()
     GLBComponent.udp_pkt_wrapper = None
+    GLBComponent.main_tcp_aff = None
+    GLBComponent.main_udp_aff = None
     GLBComponent.logic_handler = None

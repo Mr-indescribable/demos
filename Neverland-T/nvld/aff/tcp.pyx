@@ -14,7 +14,7 @@ logger = logging.getLogger('Main')
 
 
 TCP_BACKLOG = 128
-TCP_RECV_SIZE = 65536
+TCP_MAX_RECV_SIZE = 32768
 
 
 SO_ORIGINAL_DST = 80
@@ -88,12 +88,13 @@ class TCPAff():
         if self._plain_mod:
             self._raw_buf += data
         else:
+            # TODO: find default IV when the first packet is received
             self._pln_buf += self._cryptor.decrypt(data)
 
         self._update_traffic_sum( len(data) )
 
     def _recv_blking(self):
-        data = self._sock.recv(TCP_RECV_SIZE)
+        data = self._sock.recv(TCP_MAX_RECV_SIZE)
 
         if len(data) == 0:
             raise ConnectionLost()
@@ -103,7 +104,7 @@ class TCPAff():
 
     def _recv_nblking(self):
         try:
-            data = self._sock.recv(TCP_RECV_SIZE)
+            data = self._sock.recv(TCP_MAX_RECV_SIZE)
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
                 raise TryAgain()

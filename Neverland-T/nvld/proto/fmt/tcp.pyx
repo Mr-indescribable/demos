@@ -15,8 +15,18 @@ from ..fc import (
 )
 
 
+# Though the len field is an integer, but we still need to declare
+# the maximum length explicitly, we will never allow a node to receive
+# a packet with 4GBs of data, but we will not want the length limitation
+# like UDP as well, so we can use an integer to carry the len field
+# and limit the maximum of length in a way which it can be easily
+# regulated whenever we want.
+TCP_LEN_MAXIMUM = 65000
+
+TCP_META_DATA_LEN = 9
+
 RESERVED_FIELD_LEN  = 4
-DELIMITER_FIELD_LEN = 32
+DELIMITER_FIELD_LEN = 16
 
 RESERVED_FIELD_VALUE  = b'\x00' * RESERVED_FIELD_LEN
 DELIMITER_FIELD_VALUE = b'\xff' * DELIMITER_FIELD_LEN
@@ -39,8 +49,8 @@ class TCPHeaderFormat(BasePktFormat):
 
             # Length of the packet
             'len': FieldDefinition(
-                       length  = 2,
-                       type    = FieldTypes.STRUCT_U_SHORT,
+                       length  = 4,
+                       type    = FieldTypes.STRUCT_U_INT,
                        calculator    = tcp_len_calculator,
                        calc_priority = 0xfe,
                    ),
@@ -50,6 +60,8 @@ class TCPHeaderFormat(BasePktFormat):
                         length = 1,
                         type   = FieldTypes.STRUCT_U_CHAR,
                     ),
+
+            # TODO: it would be nice to have a CRC with the meta data
 
             # Here, we define that the metadata of the TCP packet
             # consists of these 3 fields above. These fields are

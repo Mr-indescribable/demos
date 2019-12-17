@@ -12,6 +12,7 @@ from ..utils.fifo import NLFifo
 from ..utils.enumeration import MetaEnum
 from ..utils.misc import VerifiTools, errno_from_exception
 from ..fdx.tcp import FDXTCPConn
+from ..proto.fmt.tcp import TCP_META_DATA_LEN
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
     TCPConnHelper,
@@ -517,7 +518,7 @@ class NLSwirl():
             self._on_remote_error()
 
         if conn.next_blk_size is None:
-            if conn.recv_buf_bts > 3:
+            if conn.recv_buf_bts >= TCP_META_DATA_LEN:
                 try:
                     TCPPacketHelper.identify_next_blk_len(conn)
                 except InvalidPkt:

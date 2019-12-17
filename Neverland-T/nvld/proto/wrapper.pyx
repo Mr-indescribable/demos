@@ -16,6 +16,8 @@ from ..exceptions import (
 from .fmt import SpecialLength
 from .fmt.tcp import (
     TCPHeaderFormat,
+    TCP_META_DATA_LEN,
+    TCP_LEN_MAXIMUM,
     DELIMITER_FIELD_LEN,
     RESERVED_FIELD_VALUE,
     DELIMITER_FIELD_VALUE,
@@ -52,9 +54,17 @@ class _DataSpliter():
             remaining = data[self.cur:]
             remaining_len = len(remaining)
 
-            field = remaining[:remaining_len - DELIMITER_FIELD_LEN]
+            if remaining_len <= DELIMITER_FIELD_LEN:
+                raise PktUnwrappingError('not enough data')
+
+            split_point = remaining_len - DELIMITER_FIELD_LEN
+            field = remaining[:split_point]
+            delim = remaining[split_point:]
+
+            if delim != DELIMITER_FIELD_VALUE:
+                raise PktUnwrappingError('incorrect delimiter')
         else:
-            raise PktUnwrappingError('Unknown special length type')
+            raise PktUnwrappingError('unknown special length type')
 
         return field, len(field)
 
@@ -330,6 +340,9 @@ class TCPPacketWrapper(_PacketWrapper):
         return True
 
     def parse_metadata(self, data):
+        if len(data) < TCP_META_DATA_LEN:
+            raise InvalidPkt('too short')
+
         self._spliter.reset()
         fields = dict()
         byte_fields = dict()
@@ -352,6 +365,9 @@ class TCPPacketWrapper(_PacketWrapper):
             raise InvalidPkt()
 
         if fields.get('type') not in PktTypes._values():
+            raise InvalidPkt()
+
+        if fields.get('len') > TCP_LEN_MAXIMUM:
             raise InvalidPkt()
 
         return fields, byte_fields
