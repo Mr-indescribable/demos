@@ -1,3 +1,6 @@
+import random
+
+from ..glb import GLBComponent
 from ..crypto.wrapper import StreamCryptor, DGramCryptor
 
 
@@ -11,9 +14,10 @@ class CryptoHelper():
     def new_dgram_cryptor(cls, *args, **kwargs):
         return DGramCryptor(*args, **kwargs)
 
-    # For each TCP connection in the channel within the NLSwirl,
-    # the connection-accepting side must traverse the default IV set and
-    # find which one is using by the peer before the handshake starts.
     @classmethod
-    def find_iv(cls, cryptor):
-        pass
+    def random_defaul_stmc(cls):
+        return random.choice(GLBComponent.default_stmc_list)
+
+    @classmethod
+    def random_defaul_dgmc(cls):
+        return random.choice(GLBComponent.default_dgmc_list)

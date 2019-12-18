@@ -14,16 +14,15 @@ from ..utils.misc import errno_from_socket
 # thus, we can use it as if either it's an aff or an eff.
 class FDXTCPConn():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False):
         self._conn = conn
         self._src = src
         self._plain_mod = plain_mod
-        self._cryptor = cryptor
         self._blocking = blocking
         self._fd = conn.fileno()
 
-        self._aff = TCPAff(conn, src, plain_mod, cryptor, blocking)
-        self._eff = TCPEff(conn, src, plain_mod, cryptor, blocking)
+        self._aff = TCPAff(conn, src, plain_mod, blocking)
+        self._eff = TCPEff(conn, src, plain_mod, blocking)
 
     def settimeout(self, timeout):
         self._conn.settimeout(timeout)
@@ -34,8 +33,22 @@ class FDXTCPConn():
     def send(self, data):
         return self._eff.send(data)
 
+    def initiate_handshake(self):
+        return self._eff.initiate_handshake()
+
+    def finish_handshake(self, new_iv):
+        self._aff.finish_handshake(new_iv)
+        self._eff.finish_handshake()
+
+    @property
+    def hs_metadata_iteration(self):
+        return self._aff.hs_metadata_iteration
+
     def append_data(self, data):
         return self._eff.append_data(data)
+
+    def append_pkt(self, pkt):
+        return self._eff.append_pkt(pkt)
 
     def read_data(self, length):
         return self._aff.read_data(length)
@@ -117,6 +130,5 @@ class FDXTCPServerAff(TCPServerAff):
             conn,
             src,
             self._plain_mod,
-            self._new_cryptor(),
             self._blocking,
         )

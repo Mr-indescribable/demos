@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import binascii
 import struct as pystruct
 
 from ..pkt.general import PktProto, PktTypes, FieldTypes
@@ -346,6 +347,8 @@ class TCPPacketWrapper(_PacketWrapper):
         self._spliter.reset()
         fields = dict()
         byte_fields = dict()
+        meta_bytes = b''
+        crc = b''
 
         for field_name, definition in TCPHeaderFormat.__fmt__.items():
             field_data, field_len = self._spliter.split(data, definition.length)
@@ -358,8 +361,14 @@ class TCPPacketWrapper(_PacketWrapper):
             fields.update( {field_name: value} )
             byte_fields.update( {field_name: field_data} )
 
-            if field_name == 'type':
+            if field_name == 'metacrc':
+                crc = field_data
                 break
+            else:
+                meta_bytes += field_data
+
+        if crc != binascii.crc32(meta_bytes):
+            raise InvalidPkt()
 
         if fields.get('rsv') != RESERVED_FIELD_VALUE:
             raise InvalidPkt()

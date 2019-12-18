@@ -4,10 +4,16 @@ import errno
 import socket
 import logging
 
-from ..glb import GLBInfo
+from ..glb import GLBInfo, GLBComponent
 from ..helper.crypto import CryptoHelper
 from ..utils.misc import errno_from_exception, errno_from_socket
-from ..exceptions import ConnectionLost, NotEnoughData, TryAgain
+from ..proto.fmt.tcp import TCP_META_DATA_LEN
+from ..exceptions import (
+    ConnectionLost,
+    NotEnoughData,
+    TryAgain,
+    DecryptionFailed,
+)
 
 
 logger = logging.getLogger('Main')
@@ -25,7 +31,19 @@ SO_ORIGINAL_DST = 80
 # TCPAff objects are always in half-duplex mode.
 class TCPAff():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False):
+        self._sock = conn
+        self.src = src
+        self._plain_mod = plain_mod
+        self._blocking = blocking
+        self._cryptor = None
+
+        self._sock.setblocking(blocking)
+        self.fd = self._sock.fileno()
+
+        self._handshaked = False
+        self._need_handshake = not self._plain_mod
+
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
 
@@ -53,26 +71,19 @@ class TCPAff():
         # empty? Imagine that there could be a day, that we are not going to
         # encrypt/decrypt data at the time we receive it. Well, maybe?
 
-        self.src = src
-        self._plain_mod = plain_mod
-        self._sock = conn
-
-        # An optional crypto.Cryptor object,
-        # it will be used in encryption or decryption if provided.
-        # In other words, if the cryptor is not provided,
-        # the afferent will work in plain mode.
-        self._cryptor = cryptor
-        self._blocking = blocking
-
-        self.fd = self._sock.fileno()
-        self._sock.setblocking(blocking)
-
     def settimeout(self, timeout):
         self._sock.settimeout(timeout)
 
     def destroy(self):
         self._sock.close()
         self._sock = None
+
+    # Unlike the TCPEff, TCPAff doesn't know about the new IV,
+    # so the object which is using TCPAff should give the new IV to it.
+    def finish_handshake(self, new_iv):
+        self._handshaked = True
+        self._need_handshake = False
+        self.update_iv(new_iv)
 
     def _update_traffic_sum(self, data_len):
         self._traffic_total += data_len
@@ -88,8 +99,10 @@ class TCPAff():
         if self._plain_mod:
             self._raw_buf += data
         else:
-            # TODO: find default IV when the first packet is received
-            self._pln_buf += self._cryptor.decrypt(data)
+            if self._need_handshake:
+                self._raw_buf += data
+            else:
+                self._pln_buf += self._cryptor.decrypt(data)
 
         self._update_traffic_sum( len(data) )
 
@@ -153,6 +166,32 @@ class TCPAff():
             return self._raw_buf[:length]
         else:
             return self._pln_buf[:length]
+
+    def __decrypt_metadata(self, data, cryptor):
+        self._cryptor = cryptor
+
+        try:
+            return self._cryptor.decrypt(data)
+        except DecryptionFailed:
+            return b''  # this will cause an InvalidPkt
+
+    # trys to decrypt the first piece of metadata with all default cryptors
+    # returns b'' while it encounters DecryptionFailed
+    @property
+    def hs_metadata_iteration(self):
+        if not self._need_handshake:
+            raise RuntimeError("handshake is done")
+
+        if len(self._raw_buf) < TCP_META_DATA_LEN:
+            raise NotEnoughData()
+
+        metadata = self._raw_buf[:TCP_META_DATA_LEN]
+
+        # notice that this is a generator but not a set object
+        return (
+            self.__decrypt_metadata(metadata, cryptor)
+            for cryptor in GLBComponent.default_stmc_list
+        )
 
     def pop_data(self, length):
         if length > self.recv_buf_bts:
@@ -240,12 +279,6 @@ class TCPServerAff():
         self._sock.close()
         self._sock = None
 
-    def _new_cryptor(self):
-        if self._plain_mod:
-            return None
-        else:
-            return CryptoHelper.new_stream_cryptor()
-
     # accept as raw materials, returns what socket.accept() returns
     def accept_raw(self):
         try:
@@ -264,6 +297,5 @@ class TCPServerAff():
             conn,
             src,
             self._plain_mod,
-            self._new_cryptor(),
             self._blocking,
         )

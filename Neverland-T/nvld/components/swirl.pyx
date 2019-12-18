@@ -170,14 +170,6 @@ class NLSwirl():
         # A FIFO queue that contains all SN in self._pkt_cache
         self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
 
-        # fields template of handshake packet
-        self._hs_pktf_temp = {
-            'sn': 0,
-            'type': PktTypes.IV_CTRL,
-            'dest': ('0.0.0.0', 0),
-            'iv': None,
-        }
-
     def _has_pkts_to_send(self):
         return (
             len(self._missing_pkt) > 0 or
@@ -281,16 +273,14 @@ class NLSwirl():
         lock = self._conn_lk_map.get(fd)
 
         with lock:
-            new_iv = GLBComponent.div_mgr.random_stmc_div()
             conn = self._conn_map.get(fd)
+            new_iv = conn.initiate_handshake()
+
+            # the transmission could be uncompleted, keep polling
+            self._io_helper.handle_send(conn)
+
             self._conn_iv_map[fd] = new_iv
             self._conn_st_map[fd] = NLSConnState.HANDSHAKING
-
-            self._hs_pktf_temp.udpate(iv=new_iv)
-            iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
-            TCPPacketHelper.wrap(iv_pkt)
-
-            self._io_helper.handle_send(conn, iv_pkt.data)
 
     # the receiver accepts the IV from the initiator and
     # reply it with an ACK.
@@ -339,7 +329,7 @@ class NLSwirl():
 
         with lock:
             conn = self._conn_map.get(fd)
-            conn.update_iv(iv)
+            conn.finish_handshake(iv)
 
             self._conn_st_map[fd] = NLSConnState.READY
             self._avai_fds.append(fd)
@@ -364,7 +354,7 @@ class NLSwirl():
 
         with lock:
             self._conn_ct_map[fd] = pkt
-            self._io_helper.append_data(conn, pkt.data)
+            self._io_helper.append_pkt(conn, pkt)
 
     # Move packet in self.__shift_recvd_pkt into self._pkt_recv_buf
     # and sort them by the sn field.
@@ -520,7 +510,9 @@ class NLSwirl():
         if conn.next_blk_size is None:
             if conn.recv_buf_bts >= TCP_META_DATA_LEN:
                 try:
-                    TCPPacketHelper.identify_next_blk_len(conn)
+                    TCPPacketHelper.identify_next_blk_len(
+                        conn, accepting_handshake
+                    )
                 except InvalidPkt:
                     # This is not supposed to be happended.
                     # In this case, the only thing we can do is disconnecting.

@@ -1,5 +1,6 @@
 import os
 import time
+import binascii
 
 from ..utils.hash import HashTools
 from ..glb import GLBComponent, GLBInfo, GLBPktFmt
@@ -33,36 +34,48 @@ def tcp_len_calculator(pkt):
         return TCP_HEADER_LEN_IPV4 + TCP_DELIMITER_LEN + body_len
 
 
-def tcp_mac_calculator(pkt):
-    ''' calculator for calculating the mac field
-
-    Rule of the mac calculating:
-
-        TCP packets has the following structure:
-
-            <rsv> <len> <type> <mac> <other_fields> <delimiter>
-
-        Here, we define the rule of mac calculating as this:
-
-            SHA256( <rsv> <len> <type> <other_fields> <delimiter>)
-    '''
-
+def _get_fmt(pkt):
     if pkt.proto == PktProto.TCP:
         if pkt.type == PktTypes.DATA:
-            fmt = GLBPktFmt.tcp_data
+            return GLBPktFmt.tcp_data
+        if pkt.type == PktTypes.IV_CTRL:
+            return GLBPktFmt.tcp_iv_ctrl
         elif pkt.type == PktTypes.CONN_CTRL:
-            fmt = GLBPktFmt.tcp_conn_ctrl
+            return GLBPktFmt.tcp_conn_ctrl
         elif pkt.type == PktTypes.CLST_CTRL:
-            fmt = GLBPktFmt.tcp_clst_ctrl
+            return GLBPktFmt.tcp_clst_ctrl
         else:
             # This should not happen, the upper layer must verify the type
             raise RuntimeError(f'Unknown TCP packet type: {pkt.type}')
-    elif pkt.proto == PktProto.UDP:
-        fmt = GLBPktFmt.udp_data
     else:
         # This should not happen, the upper layer must verify the proto field
-        raise RuntimeError(f'Unknown packet proto: {pkt.proto}')
+        raise RuntimeError(f'Wrong packet proto: {pkt.proto}')
 
+
+def tcp_metacrc_calculator(pkt):
+    fmt = _get_fmt(pkt)
+    data = b''
+
+    for field_name, definition in fmt.__fmt__.items():
+        if field_name == 'metacrc':
+            break
+
+        data += getattr(pkt.byte_fields, field_name)
+
+    return binascii.crc32(data)
+
+
+# calculator for calculating the mac field
+#
+# Rule of the mac calculating:
+#
+#    TCP packets has the following structure:
+#        <rsv> <len> <type> <metacrc> <mac> <other_fields> <delimiter>
+#
+#    Here, we define the rule of mac calculating as this:
+#        SHA256( <rsv> <len> <type> <metacrc> <other_fields> <delimiter>)
+def tcp_mac_calculator(pkt):
+    fmt = _get_fmt(pkt)
     data_2_hash = b''
 
     for field_name, definition in fmt.__fmt__.items():
@@ -92,9 +105,4 @@ def salt_calculator(pkt):
 
 
 def time_calculator(pkt):
-    ''' calculator for the time field
-    '''
-
-    return int(
-        time.time() * 1000000
-    )
+    return int( time.time() * 1000000 )

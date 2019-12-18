@@ -7,6 +7,7 @@ from ..fmt import (
 )
 from ..fc import (
     tcp_len_calculator,
+    tcp_metacrc_calculator,
     tcp_src_calculator,
     tcp_mac_calculator,
     salt_calculator,
@@ -61,7 +62,13 @@ class TCPHeaderFormat(BasePktFormat):
                         type   = FieldTypes.STRUCT_U_CHAR,
                     ),
 
-            # TODO: it would be nice to have a CRC with the meta data
+            # CRC-32 of metadata
+            'metacrc': FieldDefinition(
+                           length = 4,
+                           type   = FieldTypes.STRUCT_U_INT,
+                           calculator    = tcp_metacrc_calculator,
+                           calc_priority = 0xfd,
+                       ),
 
             # Here, we define that the metadata of the TCP packet
             # consists of these 3 fields above. These fields are

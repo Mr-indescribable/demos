@@ -1,11 +1,12 @@
 import errno
 import socket
 
-from ..exceptions import TryAgain
+from ..glb import GLBComponent
+from ..exceptions import TryAgain, InvalidPkt
 from ..utils.misc import errno_from_exception
 from ..pkt.general import PktProto
 from ..pkt.tcp import TCPPacket
-from ..glb import GLBComponent
+from ..proto.fmt.tcp import TCP_META_DATA_LEN
 
 
 class TCPConnHelper():
@@ -94,9 +95,19 @@ class TCPPacketHelper():
         return metadata
 
     @classmethod
-    def identify_next_blk_len(cls, conn):
-        metadata_b = conn.read_data(3)
-        metadata = cls.parse_tcp_metadata(metadata_b)
+    def identify_next_blk_len(cls, conn, handshaking=False):
+        if handshaking:
+            for metadata_b in conn.hs_metadata_iteration:
+                try:
+                    metadata = cls.parse_tcp_metadata(metadata_b)
+                except InvalidPkt:
+                    continue
+                else:
+                    break
+        else:
+            metadata_b = conn.read_data(TCP_META_DATA_LEN)
+            metadata = cls.parse_tcp_metadata(metadata_b)
+
         next_len = metadata.get('len')
         conn.set_next_blk_size(next_len)
 
@@ -148,6 +159,10 @@ class NonblockingTCPIOHelper():
 
     def append_data(self, eff, data):
         eff.append_data(data)
+        self.set_ev_rw(eff)
+
+    def append_pkt(self, eff, pkt):
+        eff.append_pkt(pkt)
         self.set_ev_rw(eff)
 
     def set_ev_ro(self, xff):

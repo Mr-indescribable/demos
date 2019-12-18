@@ -1,12 +1,16 @@
 import os
 import time
 import errno
+import random
 import socket
 import logging
 
-from ..glb import GLBInfo
+from ..glb import GLBInfo, GLBComponent
 from ..utils.misc import errno_from_exception, errno_from_socket
+from ..pkt.general import PktTypes
+from ..pkt.tcp import TCPPacket
 from ..helper.crypto import CryptoHelper
+from ..helper.tcp import TCPPacketHelper
 
 
 logger = logging.getLogger('Main')
@@ -21,7 +25,23 @@ TCP_BLOCK_SIZE = 32768
 # TCPEff objects are always in half-duplex mode.
 class TCPEff():
 
-    def __init__(self, conn, src, plain_mod=True, cryptor=None, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False):
+        self._sock = conn
+        self.src = src
+        self._plain_mod = plain_mod
+        self._blocking = blocking
+        self._cryptor = None
+
+        self._sock.setblocking(blocking)
+        self.fd = self._sock.fileno()
+
+        self._new_iv = None
+        self._handshaked = False
+        self._need_handshake = not self._plain_mod
+
+        if self._need_handshake:
+            self._cryptor = CryptoHelper.random_defaul_stmc()
+
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
 
@@ -35,14 +55,13 @@ class TCPEff():
 
         self._send_buf = b''
 
-        self.src = src
-        self._plain_mod = plain_mod
-        self._sock = conn
-        self._cryptor = cryptor
-        self._blocking = blocking
-
-        self.fd = self._sock.fileno()
-        self._sock.setblocking(blocking)
+        # fields template of handshake packet
+        self._hs_pktf_temp = {
+            'sn': 0,
+            'type': PktTypes.IV_CTRL,
+            'dest': ('0.0.0.0', 0),
+            'iv': None,
+        }
 
     def settimeout(self, timeout):
         self._sock.settimeout(timeout)
@@ -50,6 +69,29 @@ class TCPEff():
     def destroy(self):
         self._sock.close()
         self._sock = None
+
+    def initiate_handshake(self):
+        self._new_iv = GLBComponent.div_mgr.random_stmc_div()
+        self._hs_pktf_temp.udpate(iv=self._new_iv)
+
+        iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
+        TCPPacketHelper.wrap(iv_pkt)
+
+        # This could be uncompleted in non-blocking mode,
+        # so the invoker should keep the poller running until
+        # the transmission is over.
+        self.send(iv_pkt.data)
+
+        # The method returns the new_iv to the invoker,
+        # the invoker should check the ACK and determine
+        # whether the handshake is finished. Once the handshake
+        # is done, finish_handshake() should be invoked.
+        return self._new_iv
+
+    def finish_handshake(self):
+        self._handshaked = True
+        self._need_handshake = False
+        self.update_iv(self._new_iv)
 
     def _update_traffic_sum(self, data_len):
         self._traffic_total += data_len
@@ -118,8 +160,34 @@ class TCPEff():
         else:
             return self._send_nblking(data)
 
+    def _append_data_nblk(self, data):
+        if self._blocking:
+            raise TypeError(
+                'appending data into the buffer makes no sense in blocking mode'
+            )
+
+        if self._plain_mod:
+            pending = data
+        else:
+            pending = self._cryptor.encrypt(data) if len(data) > 0 else b''
+
+        self._send_buf += pending
+
     def append_data(self, data):
-        self._send_buf += data
+        # To implement the handshake on the afferent/efferent
+        # layer, the first piece of data must be an IV_CTRL packet
+        # and it must be intact on the sending side, otherwise, the
+        # handshake logic will make no sense.
+        if self._need_handshake:
+            raise RuntimeError("efferent is not ready")
+
+        self._append_data_nblk(data)
+
+    def append_pkt(self, pkt):
+        if self._need_handshake:
+            raise RuntimeError("efferent is not ready")
+
+        self._append_data_nblk(pkt.data)
 
     def update_cryptor(self, cryptor):
         if self._plain_mod:
