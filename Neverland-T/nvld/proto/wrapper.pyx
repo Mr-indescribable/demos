@@ -15,6 +15,7 @@ from ..exceptions import (
     InvalidPkt,
 )
 from .fmt import SpecialLength
+from .fn.tcp import TCPFieldNames, TCP_META_DATA_FIELDS
 from .fmt.tcp import (
     TCPHeaderFormat,
     TCP_META_DATA_LEN,
@@ -283,7 +284,7 @@ class TCPPacketWrapper(_PacketWrapper):
         byte_fields = ODict()
         data = pkt.data
 
-        if len(data) < 7:
+        if len(data) < TCP_META_DATA_LEN:
             raise InvalidPkt('packet too short')
 
         _fields, _byte_fields = self.parse_metadata(data)
@@ -297,7 +298,7 @@ class TCPPacketWrapper(_PacketWrapper):
         # parse the rest of the packet
         for field_name, definition in fmt.__fmt__.items():
             # skip metadata
-            if field_name in ('rsv', 'len', 'type'):
+            if field_name in TCP_META_DATA_FIELDS:
                 continue
 
             field_data, field_len = self._spliter.split(data, definition.length)
@@ -330,7 +331,7 @@ class TCPPacketWrapper(_PacketWrapper):
 
         data_2_hash = b''
         for field_name, definition in fmt.__fmt__.items():
-            if field_name == 'mac':
+            if field_name == TCPFieldNames.MAC:
                 continue
 
             data_2_hash += getattr(byte_fields, field_name)
@@ -348,7 +349,7 @@ class TCPPacketWrapper(_PacketWrapper):
         fields = dict()
         byte_fields = dict()
         meta_bytes = b''
-        crc = b''
+        crc = None
 
         for field_name, definition in TCPHeaderFormat.__fmt__.items():
             field_data, field_len = self._spliter.split(data, definition.length)
@@ -361,8 +362,8 @@ class TCPPacketWrapper(_PacketWrapper):
             fields.update( {field_name: value} )
             byte_fields.update( {field_name: field_data} )
 
-            if field_name == 'metacrc':
-                crc = field_data
+            if field_name == TCPFieldNames.METACRC:
+                crc = value
                 break
             else:
                 meta_bytes += field_data
@@ -370,13 +371,13 @@ class TCPPacketWrapper(_PacketWrapper):
         if crc != binascii.crc32(meta_bytes):
             raise InvalidPkt()
 
-        if fields.get('rsv') != RESERVED_FIELD_VALUE:
+        if fields.get(TCPFieldNames.RSV) != RESERVED_FIELD_VALUE:
             raise InvalidPkt()
 
-        if fields.get('type') not in PktTypes._values():
+        if fields.get(TCPFieldNames.TYPE) not in PktTypes._values():
             raise InvalidPkt()
 
-        if fields.get('len') > TCP_LEN_MAXIMUM:
+        if fields.get(TCPFieldNames.LEN) > TCP_LEN_MAXIMUM:
             raise InvalidPkt()
 
         return fields, byte_fields

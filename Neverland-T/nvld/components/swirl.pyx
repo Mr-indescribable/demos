@@ -12,6 +12,7 @@ from ..utils.fifo import NLFifo
 from ..utils.enumeration import MetaEnum
 from ..utils.misc import VerifiTools, errno_from_exception
 from ..fdx.tcp import FDXTCPConn
+from ..proto.fn.tcp import TCPFieldNames
 from ..proto.fmt.tcp import TCP_META_DATA_LEN
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import (
@@ -745,16 +746,16 @@ class NLSChannelFiller():
 
         # fd == fake packet
         self.fp_fields = {
-            'type': PktTypes.DATA,
-            'dest': ('0.0.0.0', 0),
-            'channel_id': 0,
-            'fake': 1,
-            'data': None,
+            TCPFieldNames.TCP: PktTypes.DATA,
+            TCPFieldNames.DEST: ('0.0.0.0', 0),
+            TCPFieldNames.CHANNEL_ID: 0,
+            TCPFieldNames.FAKE: 1,
+            TCPFieldNames.DATA: None,
         }
 
     # generates fake data
     def _gen_fpkt(self, length):
-        self.fp_fields.update(data=os.urandom(length))
+        self.fp_fields.update( {TCPFieldNames.DATA: os.urandom(length)} )
         pkt = TCPPacket(fields=self.fp_fields)
         return TCPPacketHelper.wrap(pkt)
 

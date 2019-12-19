@@ -6,6 +6,7 @@ from ..exceptions import TryAgain, InvalidPkt
 from ..utils.misc import errno_from_exception
 from ..pkt.general import PktProto
 from ..pkt.tcp import TCPPacket
+from ..proto.fn.tcp import TCPFieldNames
 from ..proto.fmt.tcp import TCP_META_DATA_LEN
 
 
@@ -108,7 +109,7 @@ class TCPPacketHelper():
             metadata_b = conn.read_data(TCP_META_DATA_LEN)
             metadata = cls.parse_tcp_metadata(metadata_b)
 
-        next_len = metadata.get('len')
+        next_len = metadata.get(TCPFieldNames.LEN)
         conn.set_next_blk_size(next_len)
 
 

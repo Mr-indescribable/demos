@@ -9,6 +9,7 @@ from ..glb import GLBInfo, GLBComponent
 from ..utils.misc import errno_from_exception, errno_from_socket
 from ..pkt.general import PktTypes
 from ..pkt.tcp import TCPPacket
+from ..proto.fn.tcp import TCPFieldNames
 from ..helper.crypto import CryptoHelper
 from ..helper.tcp import TCPPacketHelper
 
@@ -57,10 +58,10 @@ class TCPEff():
 
         # fields template of handshake packet
         self._hs_pktf_temp = {
-            'sn': 0,
-            'type': PktTypes.IV_CTRL,
-            'dest': ('0.0.0.0', 0),
-            'iv': None,
+            TCPFieldNames.SN: 0,
+            TCPFieldNames.TYPE: PktTypes.IV_CTRL,
+            TCPFieldNames.DEST: ('0.0.0.0', 0),
+            TCPFieldNames.IV: None,
         }
 
     def settimeout(self, timeout):
@@ -72,7 +73,7 @@ class TCPEff():
 
     def initiate_handshake(self):
         self._new_iv = GLBComponent.div_mgr.random_stmc_div()
-        self._hs_pktf_temp.udpate(iv=self._new_iv)
+        self._hs_pktf_temp.udpate( {TCPFieldNames.IV: self._new_iv} )
 
         iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
         TCPPacketHelper.wrap(iv_pkt)

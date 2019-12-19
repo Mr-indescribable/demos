@@ -7,9 +7,10 @@ import pytest
 from nvld.glb import GLBInfo, GLBComponent
 from nvld.ginit import ginit_glb_pktfmt
 from nvld.utils.od import ODict
-from nvld.pkt.general import PktTypes, FieldTypes, PktProto
 from nvld.pkt.tcp import TCPPacket
+from nvld.pkt.general import PktTypes, FieldTypes, PktProto
 from nvld.proto.wrapper import TCPPacketWrapper
+from nvld.proto.fn.tcp import TCPFieldNames
 from nvld.components.conf import JsonConfig
 from nvld.components.idg import IDGenerator
 
@@ -297,35 +298,35 @@ def test_unpack_field_py_dict():
 def test_make_n_parse_tcp_pkt():
     # Prepare 4 types of packets
     data_pkt_fields = {
-        'sn': 0,
-        'type': PktTypes.DATA,
-        'dest': ('127.0.0.1', 40000),
-        'data': os.urandom(2000),
-        'channel_id': 1,
+        TCPFieldNames.SN: 0,
+        TCPFieldNames.TYPE: PktTypes.DATA,
+        TCPFieldNames.DEST: ('127.0.0.1', 40000),
+        TCPFieldNames.DATA: os.urandom(2000),
+        TCPFieldNames.CHANNEL_ID: 1,
     }
     data_pkt = TCPPacket()
     data_pkt.type = PktTypes.DATA
     data_pkt.fields = ODict(**data_pkt_fields)
 
     conn_ctrl_pkt_fields = {
-        'sn': 0,
-        'type': PktTypes.CONN_CTRL,
-        'transaction': 1,
-        'channel_id': 2,
-        'is_v4': 1,
-        'dest': ('127.0.0.1', 40000),
-        'v4ip': ('127.0.0.1', 100),
+        TCPFieldNames.SN: 0,
+        TCPFieldNames.TYPE: PktTypes.CONN_CTRL,
+        TCPFieldNames.TRANSACTION: 1,
+        TCPFieldNames.CHANNEL_ID: 2,
+        TCPFieldNames.IS_IPV4: 1,
+        TCPFieldNames.DEST: ('127.0.0.1', 40000),
+        TCPFieldNames.V4ADDR: ('127.0.0.1', 100),
     }
     conn_ctrl_pkt = TCPPacket()
     conn_ctrl_pkt.type = PktTypes.CONN_CTRL
     conn_ctrl_pkt.fields = ODict(**conn_ctrl_pkt_fields)
 
     clst_ctrl_pkt_fields = {
-        'sn': 0,
-        'type': PktTypes.CLST_CTRL,
-        'dest': ('127.0.0.1', 40000),
-        'subject': 0x01,
-        'args': {'a': 1, 'b': True},
+        TCPFieldNames.SN: 0,
+        TCPFieldNames.TYPE: PktTypes.CLST_CTRL,
+        TCPFieldNames.DEST: ('127.0.0.1', 40000),
+        TCPFieldNames.SUBJECT: 0x01,
+        TCPFieldNames.ARGS: {'a': 1, 'b': True},
     }
     clst_ctrl_pkt = TCPPacket()
     clst_ctrl_pkt.type = PktTypes.CLST_CTRL

@@ -1,5 +1,6 @@
 from ...glb import GLBInfo
 from ...pkt.general import FieldTypes, PktTypes
+from ..fn.tcp import TCPFieldNames
 from ..fmt import (
     SpecialLength,
     FieldDefinition,
@@ -42,33 +43,33 @@ class TCPHeaderFormat(BasePktFormat):
     def gen_fmt(cls):
         cls.__fmt__ = {
             # Reserved field, should always be 0x00000000
-            'rsv': FieldDefinition(
-                       length  = 4,
-                       type    = FieldTypes.PY_BYTES,
-                       default = RESERVED_FIELD_VALUE,
-                   ),
+            TCPFieldNames.RSV: FieldDefinition(
+                length  = 4,
+                type    = FieldTypes.PY_BYTES,
+                default = RESERVED_FIELD_VALUE,
+            ),
 
             # Length of the packet
-            'len': FieldDefinition(
-                       length  = 4,
-                       type    = FieldTypes.STRUCT_U_INT,
-                       calculator    = tcp_len_calculator,
-                       calc_priority = 0xfe,
-                   ),
+            TCPFieldNames.LEN: FieldDefinition(
+                length        = 4,
+                type          = FieldTypes.STRUCT_U_INT,
+                calculator    = tcp_len_calculator,
+                calc_priority = 0xfd,
+            ),
 
             # Packet type
-            'type': FieldDefinition(
-                        length = 1,
-                        type   = FieldTypes.STRUCT_U_CHAR,
-                    ),
+            TCPFieldNames.TYPE: FieldDefinition(
+                length = 1,
+                type   = FieldTypes.STRUCT_U_CHAR,
+            ),
 
             # CRC-32 of metadata
-            'metacrc': FieldDefinition(
-                           length = 4,
-                           type   = FieldTypes.STRUCT_U_INT,
-                           calculator    = tcp_metacrc_calculator,
-                           calc_priority = 0xfd,
-                       ),
+            TCPFieldNames.METACRC: FieldDefinition(
+                length = 4,
+                type   = FieldTypes.STRUCT_U_INT,
+                calculator    = tcp_metacrc_calculator,
+                calc_priority = 0xfe,
+            ),
 
             # Here, we define that the metadata of the TCP packet
             # consists of these 3 fields above. These fields are
@@ -77,43 +78,43 @@ class TCPHeaderFormat(BasePktFormat):
             # The Message Authentication Code.
             # In protocol v0, we use sha256 as the digest method,
             # so the length is fixed to 64
-            'mac': FieldDefinition(
-                       length        = 64,
-                       type          = FieldTypes.PY_BYTES,
-                       calculator    = tcp_mac_calculator,
-                       calc_priority = 0xff,
-                   ),
+            TCPFieldNames.MAC: FieldDefinition(
+                length        = 64,
+                type          = FieldTypes.PY_BYTES,
+                calculator    = tcp_mac_calculator,
+                calc_priority = 0xff,
+            ),
 
             # Each packet shall have a global identifier.
-            'gid': FieldDefinition(
-                       length        = 8,
-                       type          = FieldTypes.STRUCT_U_LONG_LONG,
-                       calculator    = gid_calculator,
-                       calc_priority = 0x00,
-                   ),
+            TCPFieldNames.GID: FieldDefinition(
+                length        = 8,
+                type          = FieldTypes.STRUCT_U_LONG_LONG,
+                calculator    = gid_calculator,
+                calc_priority = 0x00,
+            ),
 
             # Eectional identifier in a NLSwirl channel.
             # The sn fields should be managed by NLSwirl itself.
-            'sn': FieldDefinition(
-                      length        = 8,
-                      type          = FieldTypes.STRUCT_U_LONG_LONG,
-                  ),
+            TCPFieldNames.SN: FieldDefinition(
+                length = 8,
+                type   = FieldTypes.STRUCT_U_LONG_LONG,
+            ),
 
             # The source of the packet
             # TODO ipv6 support
-            'src': FieldDefinition(
-                       length = None if GLBInfo.config.net.ipv6 else 6,
-                       type   = FieldTypes.STRUCT_IPV4_SA,
-                       calculator    = tcp_src_calculator,
-                       calc_priority = 0x00,
-                   ),
+            TCPFieldNames.SRC: FieldDefinition(
+                length = None if GLBInfo.config.net.ipv6 else 6,
+                type   = FieldTypes.STRUCT_IPV4_SA,
+                calculator    = tcp_src_calculator,
+                calc_priority = 0x00,
+            ),
 
             # The destination of the packet
             # TODO ipv6 support
-            'dest': FieldDefinition(
-                        length = None if GLBInfo.config.net.ipv6 else 6,
-                        type   = FieldTypes.STRUCT_IPV4_SA,
-                    ),
+            TCPFieldNames.DEST: FieldDefinition(
+                length = None if GLBInfo.config.net.ipv6 else 6,
+                type   = FieldTypes.STRUCT_IPV4_SA,
+            ),
         }
 
 
@@ -124,11 +125,11 @@ class TCPDelimiterFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            'delimiter': FieldDefinition(
-                             length  = 32,
-                             type    = FieldTypes.PY_BYTES,
-                             default = DELIMITER_FIELD_VALUE,
-                         )
+            TCPFieldNames.DELIMITER: FieldDefinition(
+                length  = 32,
+                type    = FieldTypes.PY_BYTES,
+                default = DELIMITER_FIELD_VALUE,
+            )
         }
 
 
@@ -142,21 +143,21 @@ class TCPDataPktFormat(BasePktFormat):
         cls.__fmt__ = {
             # A flag that marks whether this data packet is a pad of NLSwirl,
             # in other words, a fake packet. 0/1
-            'fake': FieldDefinition(
-                        length  = 1,
-                        type    = FieldTypes.STRUCT_U_CHAR,
-                        default = 0,
-                    ),
+            TCPFieldNames.FAKE: FieldDefinition(
+                length  = 1,
+                type    = FieldTypes.STRUCT_U_CHAR,
+                default = 0,
+            ),
             # indicates which TCP connection that the data belongs to
-            'channel_id': FieldDefinition(
-                              length = 4,
-                              type   = FieldTypes.STRUCT_U_INT,
-                          ),
+            TCPFieldNames.CHANNEL_ID: FieldDefinition(
+                length = 4,
+                type   = FieldTypes.STRUCT_U_INT,
+            ),
             # just the data
-            'data': FieldDefinition(
-                        length = SpecialLength.TCP_EXCEPT_DELIM,
-                        type   = FieldTypes.PY_BYTES,
-                    ),
+            TCPFieldNames.DATA: FieldDefinition(
+                length = SpecialLength.TCP_EXCEPT_DELIM,
+                type   = FieldTypes.PY_BYTES,
+            ),
         }
 
 
@@ -172,10 +173,10 @@ class TCPIVCtrlPktFormat(BasePktFormat):
     @classmethod
     def gen_fmt(cls):
         cls.__fmt__ = {
-            'iv': FieldDefinition(
-                      length = SpecialLength.TCP_EXCEPT_DELIM,
-                      type   = FieldTypes.PY_BYTES,
-                  ),
+            TCPFieldNames.IV: FieldDefinition(
+                length = SpecialLength.TCP_EXCEPT_DELIM,
+                type   = FieldTypes.PY_BYTES,
+            ),
         }
 
 
@@ -188,47 +189,47 @@ class TCPConnCtrlPktFormat(BasePktFormat):
     def gen_fmt(cls):
         cls.__fmt__ = {
             #An integer that marks what the sender wants to do
-            'transaction': FieldDefinition(
-                               length = 1,
-                               type   = FieldTypes.STRUCT_U_CHAR,
-                           ),
+            TCPFieldNames.TRANSACTION: FieldDefinition(
+                length = 1,
+                type   = FieldTypes.STRUCT_U_CHAR,
+            ),
             # The channel ID assigned for the TCP connection
-            'channel_id': FieldDefinition(
-                              length = 4,
-                              type   = FieldTypes.STRUCT_U_INT,
-                          ),
+            TCPFieldNames.CHANNEL_ID: FieldDefinition(
+                length = 4,
+                type   = FieldTypes.STRUCT_U_INT,
+            ),
             # A boolean in int type that indicates whether we are using IPv4
-            'is_v4': FieldDefinition(
-                         length  = 1,
-                         type    = FieldTypes.STRUCT_U_CHAR,
-                         default = 1,
-                     ),
+            TCPFieldNames.IS_IPV4: FieldDefinition(
+                length  = 1,
+                type    = FieldTypes.STRUCT_U_CHAR,
+                default = 1,
+            ),
             # An IPv4 socket address used with REQ_CONNECT transaction,
             # this field should be set to all zero if IPv6 is in use
-            'v4ip': FieldDefinition(
-                        length  = 6,
-                        type    = FieldTypes.STRUCT_IPV4_SA,
-                        default = ('0.0.0.0', 0),
-                    ),
+            TCPFieldNames.V4ADDR: FieldDefinition(
+                length  = 6,
+                type    = FieldTypes.STRUCT_IPV4_SA,
+                default = ('0.0.0.0', 0),
+            ),
             # An IPv6 socket address used with REQ_CONNECT transaction,
             # this fields should be set to all zero if IPv4 is in use.
             #
             # Currnetly, it's not in use.
-            'v6ip': FieldDefinition(
-                        length  = 18,
-                        type    = FieldTypes.PY_BYTES,
-                        default = b'\x00' * 18,
-                    ),
+            TCPFieldNames.V6ADDR: FieldDefinition(
+                length  = 18,
+                type    = FieldTypes.PY_BYTES,
+                default = b'\x00' * 18,
+            ),
             # just the errno, mainly used with RPT_ERROR transaction
-            'errno': FieldDefinition(
-                         length  = 4,
-                         type    = FieldTypes.STRUCT_U_INT,
-                         default = 0,
-                     ),
+            TCPFieldNames.ERRNO: FieldDefinition(
+                length  = 4,
+                type    = FieldTypes.STRUCT_U_INT,
+                default = 0,
+            ),
         }
 
 
-# The format of cluster controlling packets' body
+# The format of cluster control packets' body
 class TCPClstCtrlPktFormat(BasePktFormat):
 
     __type__ = PktTypes.CLST_CTRL
@@ -238,16 +239,16 @@ class TCPClstCtrlPktFormat(BasePktFormat):
         cls.__fmt__ = {
             # Literally, the subject field means what the node wants to do.
             # Enumerated in neverland.protocol.v0.subjects
-            'subject': FieldDefinition(
-                           length = 4,
-                           type   = FieldTypes.STRUCT_U_INT,
-                       ),
+            TCPFieldNames.SUBJECT: FieldDefinition(
+                length = 4,
+                type   = FieldTypes.STRUCT_U_INT,
+            ),
 
             # Just like invoking a function with arguments, the content field
             # contains arguments for the selected subject.
             # The format of content field is stringified JSON.
-            'args': FieldDefinition(
-                        length = SpecialLength.TCP_EXCEPT_DELIM,
-                        type   = FieldTypes.PY_DICT,
-                    ),
+            TCPFieldNames.ARGS: FieldDefinition(
+                length = SpecialLength.TCP_EXCEPT_DELIM,
+                type   = FieldTypes.PY_DICT,
+            ),
         }

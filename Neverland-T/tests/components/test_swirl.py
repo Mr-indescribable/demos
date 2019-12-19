@@ -17,6 +17,7 @@ from nvld.fdx.tcp import FDXTCPServerAff
 from nvld.ev.epoll import EpollPoller
 from nvld.pkt.general import PktProto, PktTypes
 from nvld.pkt.tcp import TCPPacket
+from nvld.proto.fn.tcp import TCPFieldNames
 
 
 _ADDR = '127.0.0.1'
@@ -334,11 +335,11 @@ def test_send(recver):
     _wait_for_channel(nls, poller)
 
     pkt_fields = {
-        'type': PktTypes.DATA,
-        'fake': 0,
-        'channel_id': 100,
-        'data': os.urandom(128),
-        'dest': ('127.0.0.1', 12345),
+        TCPFieldNames.TYPE: PktTypes.DATA,
+        TCPFieldNames.FAKE: 0,
+        TCPFieldNames.CHANNEL_ID: 100,
+        TCPFieldNames.DATA: os.urandom(128),
+        TCPFieldNames.DEST: ('127.0.0.1', 12345),
     }
     pkt = TCPPacket(fields=pkt_fields)
 

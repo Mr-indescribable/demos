@@ -4,8 +4,9 @@ import binascii
 
 from ..utils.hash import HashTools
 from ..glb import GLBComponent, GLBInfo, GLBPktFmt
-from .fmt import ComplexedFormat
 from ..pkt.general import PktTypes, PktProto
+from .fn.tcp import TCPFieldNames, TCP_META_DATA_FIELDS
+from .fmt import ComplexedFormat
 
 
 # field calculators for PktFormat classes
@@ -56,11 +57,9 @@ def tcp_metacrc_calculator(pkt):
     fmt = _get_fmt(pkt)
     data = b''
 
-    for field_name, definition in fmt.__fmt__.items():
-        if field_name == 'metacrc':
-            break
-
-        data += getattr(pkt.byte_fields, field_name)
+    for field_name in TCP_META_DATA_FIELDS:
+        if field_name != TCPFieldNames.METACRC:
+            data += getattr(pkt.byte_fields, field_name)
 
     return binascii.crc32(data)
 
@@ -78,8 +77,8 @@ def tcp_mac_calculator(pkt):
     fmt = _get_fmt(pkt)
     data_2_hash = b''
 
-    for field_name, definition in fmt.__fmt__.items():
-        if field_name == 'mac':
+    for field_name in fmt.__fmt__.keys():
+        if field_name == TCPFieldNames.MAC:
             continue
 
         data_2_hash += getattr(pkt.byte_fields, field_name)
