@@ -12,6 +12,7 @@ from nvld.components.swirl import NLSConnState, NLSwirl, NLSChannelFiller
 from nvld.components.conf import JsonConfig
 from nvld.components.div import DefaultIVMgr
 from nvld.components.idg import IDGenerator
+from nvld.crypto.wrapper import StreamCryptor
 from nvld.proto.wrapper import TCPPacketWrapper
 from nvld.fdx.tcp import FDXTCPServerAff
 from nvld.ev.epoll import EpollPoller
@@ -211,6 +212,10 @@ def __with_glb_conf(func):
             div_mgr.load_as_stmc_iv( os.urandom(32 * 12) )
             div_mgr.load_as_dgmc_iv( os.urandom(32 * 12) )
             GLBComponent.div_mgr = div_mgr
+
+            GLBComponent.default_stmc_list = [
+                StreamCryptor(iv) for iv in GLBInfo.stmc_div_list
+            ]
 
             ginit_glb_pktfmt()
             GLBComponent.tcp_pkt_wrapper = TCPPacketWrapper()

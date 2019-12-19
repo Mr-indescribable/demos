@@ -267,6 +267,8 @@ class TCPPacketWrapper(_PacketWrapper):
         if proto == PktProto.TCP:
             if type_ == PktTypes.DATA:
                 return GLBPktFmt.tcp_data
+            elif type_ == PktTypes.IV_CTRL:
+                return GLBPktFmt.tcp_iv_ctrl
             elif type_ == PktTypes.CONN_CTRL:
                 return GLBPktFmt.tcp_conn_ctrl
             elif type_ == PktTypes.CLST_CTRL:

@@ -73,7 +73,7 @@ class TCPEff():
 
     def initiate_handshake(self):
         self._new_iv = GLBComponent.div_mgr.random_stmc_div()
-        self._hs_pktf_temp.udpate( {TCPFieldNames.IV: self._new_iv} )
+        self._hs_pktf_temp.update( {TCPFieldNames.IV: self._new_iv} )
 
         iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
         TCPPacketHelper.wrap(iv_pkt)

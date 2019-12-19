@@ -212,7 +212,6 @@ class NLSwirl():
                 conn,
                 src=None,
                 plain_mod=False,
-                cryptor=CryptoHelper.new_stream_cryptor(),
                 blocking=False,
             )
         except OSError as e:
@@ -341,8 +340,8 @@ class NLSwirl():
         self._conn_st_map[fd] = NLSConnState.CONNECTED
 
         if not self._ready_ev_triggered:
-            self._ready_ev.trigger()
             self._ready_ev_triggered = True
+            self._ready_ev.trigger()
 
     # when the remote node sends something incorrect
     def _on_remote_error(self):
@@ -492,6 +491,7 @@ class NLSwirl():
             return
         elif state != NLSConnState.READY:
             raise RuntimeError('connection state error')
+            #TODO: to be debuged
 
         try:
             conn.recv()

@@ -21,6 +21,8 @@ TCP_CONN_CTRL_LEN = 1 + 4 + 1 + 6 + 18 + 4
 def tcp_len_calculator(pkt):
     if pkt.type == PktTypes.DATA:
         body_len = len(pkt.byte_fields.data) + 1 + 4
+    if pkt.type == PktTypes.IV_CTRL:
+        body_len = len(pkt.byte_fields.iv)
     elif pkt.type == PktTypes.CONN_CTRL:
         body_len = TCP_CONN_CTRL_LEN
     elif pkt.type == PktTypes.CLST_CTRL:
