@@ -51,10 +51,12 @@ def test_all(gl_config):
 
 
 def _test_cipher():
-    stream_cryptor = StreamCryptor()
-    dgram_cryptor = DGramCryptor()
+    if GLBInfo.config.net.crypto.stream_cipher.startswith('kc-'):
+        cryptors = (DGramCryptor(), )
+    else:
+        cryptors = (StreamCryptor(), DGramCryptor())
 
-    for cryptor in (stream_cryptor, dgram_cryptor):
+    for cryptor in cryptors:
         for _ in range(256):
             src_data = os.urandom(65536)
             encrypted_data = cryptor.encrypt(src_data)

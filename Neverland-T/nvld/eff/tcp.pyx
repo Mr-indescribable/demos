@@ -40,9 +40,6 @@ class TCPEff():
         self._handshaked = False
         self._need_handshake = not self._plain_mod
 
-        if self._need_handshake:
-            self._cryptor = CryptoHelper.random_defaul_stmc()
-
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
 

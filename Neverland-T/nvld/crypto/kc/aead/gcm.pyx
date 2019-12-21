@@ -1,11 +1,12 @@
 import os
+import errno
 import socket
 import platform
 
 from ....exceptions import DecryptionFailed
 from ....utils.misc import errno_from_exception
 from ...mode import Modes
-from ..base import BaseKernelCryptor, KC_DECRYPTION_FAILED
+from ..base import BaseKernelCryptor
 
 
 # The KC GCM Crypto Module
@@ -66,10 +67,10 @@ class GCMKernelCryptor(BaseKernelCryptor):
             aad = os.urandom(self._aad_len)
             msg = aad + data
 
-            recv_buffer_len = self._aad_len + len(data) + self._icv_len
+            recv_len = self._aad_len + len(data) + self._icv_len
         else:
             msg = data
-            recv_buffer_len = len(data)
+            recv_len = len(data)
 
         self.alg_conn.sendmsg_afalg(
             [msg],
@@ -79,10 +80,11 @@ class GCMKernelCryptor(BaseKernelCryptor):
         )
 
         try:
-            res = self.alg_conn.recv(recv_buffer_len)
+            res = self.alg_conn.recv(recv_len)
         except OSError as e:
-            errno = errno_from_exception(e)
-            if errno == KC_DECRYPTION_FAILED:
+            err = errno_from_exception(e)
+
+            if err == errno.EINVAL or err == errno.EBADMSG:
                 raise DecryptionFailed
             else:
                 raise e
@@ -99,4 +101,4 @@ class GCMKernelCryptor(BaseKernelCryptor):
             return res
         else:
             # Here we extract the plain text and return the plain text only
-            return res[self._aad_len: recv_buffer_len - self._icv_len]
+            return res[self._aad_len: recv_len - self._icv_len]

@@ -186,8 +186,8 @@ def __with_glb_conf(func):
                     },
                     'crypto': {
                         'password': 'The_P@5sw0RD',
-                        'stream_cipher': 'kc-aes-256-gcm',
-                        'dgram_cipher': 'aes-256-gcm',
+                        'stream_cipher': 'aes-256-gcm',
+                        'dgram_cipher': 'kc-aes-256-gcm',
                         'salt_len': 8,
                         'iv_len': 12,
                         'iv_duration_range': [1000, 2000],
@@ -253,7 +253,7 @@ def _get_new_poller_n_nls():
         poller,
         is_initiator=True,
         remote=(_ADDR, _PORT),
-        conn_num=4,
+        conn_num=1,
     )
 
     return poller, nls
@@ -332,7 +332,7 @@ def test_build_n_close(recver):
 
 @__with_glb_conf
 @__with_receiver(_PacketHandlers.spec_pkt_only_handler)
-def test_send(recver):
+def _test_send(recver):
     recver.ev_ready.wait()
     poller, nls = _get_new_poller_n_nls()
 

@@ -85,6 +85,12 @@ class TCPAff():
         self._need_handshake = False
         self.update_iv(new_iv)
 
+        # once the handshake is done, all data in the self._raw_buf should
+        # be decrypted and shifted into self._pln_buf
+        if len(self._raw_buf) > 0:
+            self._pln_buf += self._cryptor.decrypt(self._raw_buf)
+            self._raw_buf = b''
+
     def _update_traffic_sum(self, data_len):
         self._traffic_total += data_len
 
@@ -174,6 +180,9 @@ class TCPAff():
             return self._cryptor.decrypt(data)
         except DecryptionFailed:
             return b''  # this will cause an InvalidPkt
+        finally:
+            # reset default cryptor
+            self._cryptor.reset()
 
     # trys to decrypt the first piece of metadata with all default cryptors
     # returns b'' while it encounters DecryptionFailed
@@ -187,7 +196,6 @@ class TCPAff():
 
         metadata = self._raw_buf[:TCP_META_DATA_LEN]
 
-        # notice that this is a generator but not a set object
         return (
             self.__decrypt_metadata(metadata, cryptor)
             for cryptor in GLBComponent.default_stmc_list
@@ -218,7 +226,10 @@ class TCPAff():
         if self._plain_mod:
             return len(self._raw_buf)
         else:
-            return len(self._pln_buf)
+            if self._need_handshake:
+                return len(self._raw_buf) + len(self._pln_buf)
+            else:
+                return len(self._pln_buf)
 
     @property
     def next_blk_size(self):

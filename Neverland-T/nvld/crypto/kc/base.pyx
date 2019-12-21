@@ -13,10 +13,6 @@ from ..mode import Modes
 _kernel_version_checked = False
 
 
-# The errno of KC decription failure
-KC_DECRYPTION_FAILED = 74
-
-
 # The base class of kernel cryptors
 class BaseKernelCryptor():
 

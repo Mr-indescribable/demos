@@ -164,6 +164,9 @@ class StreamCryptor(Cryptor):
         attribution=None,
     ):
         cipher = GLBInfo.config.net.crypto.stream_cipher
+        if cipher.startswith('kc-'):
+            raise ConfigError('kernel cipher cannot be used with StreamCryptor')
+
         iv = iv or GLBComponent.div_mgr.random_stmc_div()
         Cryptor.__init__(self, cipher, iv, key, attribution, stream_mod=True)
 

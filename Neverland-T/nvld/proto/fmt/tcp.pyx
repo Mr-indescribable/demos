@@ -25,7 +25,7 @@ from ..fc import (
 # regulated whenever we want.
 TCP_LEN_MAXIMUM = 65000
 
-TCP_META_DATA_LEN = 9
+TCP_META_DATA_LEN = 13
 
 RESERVED_FIELD_LEN  = 4
 DELIMITER_FIELD_LEN = 16
@@ -126,7 +126,7 @@ class TCPDelimiterFormat(BasePktFormat):
     def gen_fmt(cls):
         cls.__fmt__ = {
             TCPFieldNames.DELIMITER: FieldDefinition(
-                length  = 32,
+                length  = DELIMITER_FIELD_LEN,
                 type    = FieldTypes.PY_BYTES,
                 default = DELIMITER_FIELD_VALUE,
             )

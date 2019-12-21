@@ -98,6 +98,8 @@ class TCPPacketHelper():
     @classmethod
     def identify_next_blk_len(cls, conn, handshaking=False):
         if handshaking:
+            metadata = None
+
             for metadata_b in conn.hs_metadata_iteration:
                 try:
                     metadata = cls.parse_tcp_metadata(metadata_b)
@@ -105,6 +107,9 @@ class TCPPacketHelper():
                     continue
                 else:
                     break
+
+            if metadata is None:
+                raise InvalidPkt('Unable to parse metadata with DIV')
         else:
             metadata_b = conn.read_data(TCP_META_DATA_LEN)
             metadata = cls.parse_tcp_metadata(metadata_b)

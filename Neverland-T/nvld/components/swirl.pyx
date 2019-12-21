@@ -339,9 +339,11 @@ class NLSwirl():
         self._conn_retried = 0
         self._conn_st_map[fd] = NLSConnState.CONNECTED
 
-        if not self._ready_ev_triggered:
-            self._ready_ev_triggered = True
-            self._ready_ev.trigger()
+    # def _on_ready(self, fd):
+        # self._conn_st_map[fd] = NLSConnState.READY
+        # if not self._ready_ev_triggered:
+            # self._ready_ev_triggered = True
+            # self._ready_ev.trigger()
 
     # when the remote node sends something incorrect
     def _on_remote_error(self):
@@ -479,11 +481,15 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
+            state = NLSConnState.CONNECTED
 
+        if state == NLSConnState.CONNECTED:
             if self._is_initiator:
                 self._initiate_handshake(fd)
                 return
             else:
+                state = NLSConnState.HANDSHAKING
+                self._conn_st_map[fd] = NLSConnState.HANDSHAKING
                 accepting_handshake = True
         elif state == NLSConnState.HANDSHAKING and self._is_initiator:
             expecting_hs_ack = True
@@ -491,7 +497,6 @@ class NLSwirl():
             return
         elif state != NLSConnState.READY:
             raise RuntimeError('connection state error')
-            #TODO: to be debuged
 
         try:
             conn.recv()
@@ -596,10 +601,15 @@ class NLSwirl():
             state == NLSConnState.RECONNECTING
         ):
             self._on_connected(fd)
+            state = NLSConnState.CONNECTED
 
+        if state == NLSConnState.CONNECTED:
             if self._is_initiator:
                 self._initiate_handshake(fd)
-                return
+
+            return  # We cannot do anything before the handshake is done
+        elif state == NLSConnState.HANDSHAKING:
+            pass
         elif state == NLSConnState.DISCONNECTED:
             return
         elif state != NLSConnState.READY:
