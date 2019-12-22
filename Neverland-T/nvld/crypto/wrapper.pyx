@@ -50,6 +50,18 @@ class Cryptor():
     # type: str, format: "ip:port"
     attribution = None
 
+    # Constructor
+    #
+    # :param cipher_name: pick a cipher name from ALL_CIPHERS
+    # :param iv: optional, if this argument is not given, then the default
+    #            IV derived by neverland.utils.HashTools.hdivdf will be used
+    # :param key: optional, if this argument is not given, then the default
+    #             key derived by neverland.utils.HashTools.hkdf will be used
+    # :param attribution: a tag about which remote node that this cryptor
+    #                     belongs to.
+    # :param stream_mod: if is argument is False, then the Cryptor will
+    #                    not work in stream mode, it will reset the cipher
+    #                    after each time of encryption or decryption
     def __init__(
         self,
         cipher_name,
@@ -58,19 +70,6 @@ class Cryptor():
         attribution=None,
         stream_mod=False,
     ):
-        # Constructor
-        #
-        # :param cipher_name: pick a cipher name from ALL_CIPHERS
-        # :param iv: optional, if this argument is not given, then the default
-        #            IV derived by neverland.utils.HashTools.hdivdf will be used
-        # :param key: optional, if this argument is not given, then the default
-        #             key derived by neverland.utils.HashTools.hkdf will be used
-        # :param attribution: a tag about which remote node that this cryptor
-        #                     belongs to.
-        # :param stream_mod: if is argument is False, then the Cryptor will
-        #                    not work in stream mode, it will reset the cipher
-        #                    after each time of encryption or decryption
-
         self.attribution = attribution
         self._stream_mod = stream_mod
 

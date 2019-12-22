@@ -365,7 +365,7 @@ class SHMServer():
         except TryAgain:
             return
 
-        fdxconn = FDXTCPConn(conn, src)
+        fdxconn = FDXTCPConn(conn, src, blocking=False, dnt_hs=True)
         self._poller.register(fdxconn.fd, self._poller.DEFAULT_EV, fdxconn)
 
     def _handle_in(self, fd):
@@ -637,7 +637,7 @@ class SHMClient():
             blocking=True,
             timeout=self.SOCK_TIMEOUT
         )
-        self._conn = FDXTCPConn(conn, src=None, blocking=True)
+        self._conn = FDXTCPConn(conn, src=None, blocking=True, dnt_hs=True)
 
     def _gen_req(self, action, key, type_=None, data=None):
         r_json = {

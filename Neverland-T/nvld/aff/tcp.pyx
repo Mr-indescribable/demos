@@ -31,7 +31,7 @@ SO_ORIGINAL_DST = 80
 # TCPAff objects are always in half-duplex mode.
 class TCPAff():
 
-    def __init__(self, conn, src, plain_mod=True, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False, dnt_hs=False):
         self._sock = conn
         self.src = src
         self._plain_mod = plain_mod
@@ -42,7 +42,7 @@ class TCPAff():
         self.fd = self._sock.fileno()
 
         self._handshaked = False
-        self._need_handshake = not self._plain_mod
+        self._need_handshake = False if dnt_hs else not self._plain_mod
 
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
@@ -66,10 +66,6 @@ class TCPAff():
         # a buffer that stores plain data (decrypted if cryptor is provided)
         # if the cryptor is not provided, then this buffer will always be empty
         self._pln_buf = b''
-
-        # But why do we need two buffers while one of them will always be
-        # empty? Imagine that there could be a day, that we are not going to
-        # encrypt/decrypt data at the time we receive it. Well, maybe?
 
     def settimeout(self, timeout):
         self._sock.settimeout(timeout)
@@ -146,18 +142,11 @@ class TCPAff():
 
     def update_cryptor(self, cryptor):
         if self._plain_mod:
-            raise RuntimeError(
-                "TCPAff cannot be changed from plain mode to encrypting mode"
-            )
+            raise RuntimeError("object is in plain mode")
 
         self._cryptor = cryptor
 
     def update_iv(self, iv):
-        if self._plain_mod:
-            raise RuntimeError(
-                "TCPAff cannot be changed from plain mode to encrypting mode"
-            )
-
         cryptor = CryptoHelper.new_stream_cryptor(iv=iv)
         self.update_cryptor(cryptor)
 
@@ -173,15 +162,16 @@ class TCPAff():
         else:
             return self._pln_buf[:length]
 
-    def __decrypt_metadata(self, data, cryptor):
+    def __decrypt_hs_metadata(self, data, cryptor):
         self._cryptor = cryptor
+        self._cryptor.reset()
 
         try:
             return self._cryptor.decrypt(data)
         except DecryptionFailed:
-            return b''  # this will cause an InvalidPkt
+            # this is impossible unless we are using an AEAD cipher
+            return b''  # and returning b'' will cause an InvalidPkt
         finally:
-            # reset default cryptor
             self._cryptor.reset()
 
     # trys to decrypt the first piece of metadata with all default cryptors
@@ -196,8 +186,9 @@ class TCPAff():
 
         metadata = self._raw_buf[:TCP_META_DATA_LEN]
 
+        # generator
         return (
-            self.__decrypt_metadata(metadata, cryptor)
+            self.__decrypt_hs_metadata(metadata, cryptor)
             for cryptor in GLBComponent.default_stmc_list
         )
 
@@ -209,8 +200,18 @@ class TCPAff():
             data = self._raw_buf[:length]
             self._raw_buf = self._raw_buf[length:]
         else:
-            data = self._pln_buf[:length]
-            self._pln_buf = self._pln_buf[length:]
+            if self._need_handshake:
+                raw_data = self._raw_buf[:length]
+                self._raw_buf = self._raw_buf[length:]
+
+                try:
+                    data = self._cryptor.decrypt(raw_data)
+                except DecryptionFailed:
+                    # this is impossible unless we are using an AEAD cipher
+                    data = b''
+            else:
+                data = self._pln_buf[:length]
+                self._pln_buf = self._pln_buf[length:]
 
         return data
 

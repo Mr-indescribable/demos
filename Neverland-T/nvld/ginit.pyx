@@ -4,7 +4,7 @@
 import logging
 
 from .glb import GLBPktFmt, GLBInfo, GLBComponent
-from .crypto.wrapper import StreamCryptor
+from .crypto.wrapper import StreamCryptor, IV_LEN_MAP
 from .components.nid import NIDMgr
 from .components.div import DefaultIVMgr
 from .components.idg import IDGenerator
@@ -85,6 +85,8 @@ def ginit_glb_info(args):
     # init config and div_set
     nid_mgr = NIDMgr()
     nid_mgr.load(args.n)
+
+    GLBInfo.max_iv_len = max(IV_LEN_MAP.values())
 
     GLBInfo.local_ip     = get_localhost_ip()
     GLBInfo.svr_tcp_port = GLBInfo.config.net.tcp.aff_listen_port

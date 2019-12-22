@@ -17,7 +17,7 @@ from ..helper.tcp import TCPPacketHelper
 logger = logging.getLogger('Main')
 
 
-TCP_BLOCK_SIZE = 32768
+TCP_SEND_BLOCK_SIZE = 32768
 
 
 # A TCP efferent is a wrapper of a TCP connection
@@ -26,7 +26,7 @@ TCP_BLOCK_SIZE = 32768
 # TCPEff objects are always in half-duplex mode.
 class TCPEff():
 
-    def __init__(self, conn, src, plain_mod=True, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False, dnt_hs=False):
         self._sock = conn
         self.src = src
         self._plain_mod = plain_mod
@@ -38,7 +38,8 @@ class TCPEff():
 
         self._new_iv = None
         self._handshaked = False
-        self._need_handshake = not self._plain_mod
+        self._need_handshake = False if dnt_hs else not self._plain_mod
+        self._hs_dc_choosed = False
 
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
@@ -69,7 +70,13 @@ class TCPEff():
         self._sock = None
 
     def initiate_handshake(self):
-        self._new_iv = GLBComponent.div_mgr.random_stmc_div()
+        if not self._need_handshake:
+            raise RuntimeError('doesn\'t need handshake')
+
+        self._new_iv = os.urandom(GLBInfo.max_iv_len)
+        while self._new_iv in GLBInfo.stmc_div_list:
+            self._new_iv = os.urandom(GLBInfo.max_iv_len)
+
         self._hs_pktf_temp.update( {TCPFieldNames.IV: self._new_iv} )
 
         iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
@@ -87,6 +94,9 @@ class TCPEff():
         return self._new_iv
 
     def finish_handshake(self):
+        if not self._need_handshake:
+            raise RuntimeError('doesn\'t need handshake')
+
         self._handshaked = True
         self._need_handshake = False
         self.update_iv(self._new_iv)
@@ -101,10 +111,12 @@ class TCPEff():
         else:
             self._traffic_realtime += data_len
 
-    def _send_blking(self, data=b''):
+    def _send_blking(self, data):
+        data_len = len(data)
+
         # to be compatible with the non-blocking api, the zero length
         # data should be allowed here
-        if len(data) == 0:
+        if data_len == 0:
             return
 
         if self._plain_mod:
@@ -113,24 +125,17 @@ class TCPEff():
             d2s = self._cryptor.encrypt(data) if len(data) > 0 else b''
 
         # blocking socket will send all data given
-        self._update_traffic_sum( len(d2s) )
+        self._update_traffic_sum(data_len)
+        return self._sock.send(data)
 
-        return self._sock.send(d2s)
-
-    def _send_nblking(self, data=b''):
-        if self._plain_mod:
-            pending = data
-        else:
-            pending = self._cryptor.encrypt(data) if len(data) > 0 else b''
-
-        self._send_buf += pending
+    def _send_nblking(self):
         buf_len = len(self._send_buf)
 
         if buf_len == 0:
             return 0
 
-        if buf_len > TCP_BLOCK_SIZE:
-            d2s = self._send_buf[:TCP_BLOCK_SIZE]
+        if buf_len > TCP_SEND_BLOCK_SIZE:
+            d2s = self._send_buf[:TCP_SEND_BLOCK_SIZE]
         else:
             d2s = self._send_buf
 
@@ -156,18 +161,34 @@ class TCPEff():
         if self._blocking:
             return self._send_blking(data)
         else:
-            return self._send_nblking(data)
+            self._append_data_nblk(data)
+            return self._send_nblking()
 
-    def _append_data_nblk(self, data):
+    def _append_data_nblk(self, data=b''):
         if self._blocking:
             raise TypeError(
                 'appending data into the buffer makes no sense in blocking mode'
             )
 
+        if len(data) == 0:
+            return
+
         if self._plain_mod:
             pending = data
         else:
-            pending = self._cryptor.encrypt(data) if len(data) > 0 else b''
+            # so, due to this logic, we cannot use fragments of data pieces
+            # while we are performing a handshake, ensure that the handshake
+            # packet is passed in in one piece.
+            if self._need_handshake:
+                if not self._hs_dc_choosed:
+                    self._cryptor = CryptoHelper.random_defaul_stmc()
+                    self._hs_dc_choosed = True
+
+                self._cryptor.reset()
+                pending = self._cryptor.encrypt(data)
+                self._cryptor.reset()
+            else:
+                pending = self._cryptor.encrypt(data)
 
         self._send_buf += pending
 
@@ -189,18 +210,11 @@ class TCPEff():
 
     def update_cryptor(self, cryptor):
         if self._plain_mod:
-            raise RuntimeError(
-                "TCPEff cannot be changed from plain mode to encrypting mode"
-            )
+            raise RuntimeError("efferent is in plain mode")
 
         self._cryptor = cryptor
 
     def update_iv(self, iv):
-        if self._plain_mod:
-            raise RuntimeError(
-                "TCPEff cannot be changed from plain mode to encrypting mode"
-            )
-
         cryptor = CryptoHelper.new_stream_cryptor(iv=iv)
         self.update_cryptor(cryptor)
 

@@ -202,6 +202,7 @@ def __with_glb_conf(func):
             }
 
             GLBInfo.config = ODict(**conf_dict)
+            GLBInfo.max_iv_len = 32
             GLBInfo.local_ip = '127.0.0.1'
             GLBInfo.svr_tcp_port = 20000
             GLBInfo._INITED = True
@@ -269,13 +270,13 @@ def _wait_for_channel(nls, poller):
         for fd, ev in evs:
             nls.handle_ev(fd, ev)
 
-        connected = 0
+        ready = 0
 
         for fd, st in nls._conn_st_map.items():
-            if st == NLSConnState.CONNECTED:
-                connected += 1
+            if st == NLSConnState.READY:
+                ready += 1
 
-        if connected == nls._conn_num:
+        if ready == nls._conn_num:
             return
 
         polled += 1
@@ -318,7 +319,7 @@ def test_build_n_close(recver):
         fds.add(fd)
 
         st = nls._conn_st_map.get(fd)
-        assert st == NLSConnState.CONNECTED
+        assert st == NLSConnState.READY
         assert fd in nls._conn_map
         assert fd in nls._conn_lk_map
 

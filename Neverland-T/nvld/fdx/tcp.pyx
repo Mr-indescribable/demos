@@ -14,15 +14,15 @@ from ..utils.misc import errno_from_socket
 # thus, we can use it as if either it's an aff or an eff.
 class FDXTCPConn():
 
-    def __init__(self, conn, src, plain_mod=True, blocking=False):
+    def __init__(self, conn, src, plain_mod=True, blocking=False, dnt_hs=False):
         self._conn = conn
         self._src = src
         self._plain_mod = plain_mod
         self._blocking = blocking
         self._fd = conn.fileno()
 
-        self._aff = TCPAff(conn, src, plain_mod, blocking)
-        self._eff = TCPEff(conn, src, plain_mod, blocking)
+        self._aff = TCPAff(conn, src, plain_mod, blocking, dnt_hs)
+        self._eff = TCPEff(conn, src, plain_mod, blocking, dnt_hs)
 
     def settimeout(self, timeout):
         self._conn.settimeout(timeout)
@@ -33,8 +33,19 @@ class FDXTCPConn():
     def send(self, data):
         return self._eff.send(data)
 
+    def sync_cryptor_from_aff(self):
+        self._eff.update_cryptor(self._aff._cryptor)
+
+    def sync_cryptor_from_eff(self):
+        self._aff.update_cryptor(self._eff._cryptor)
+
     def initiate_handshake(self):
-        return self._eff.initiate_handshake()
+        new_iv = self._eff.initiate_handshake()
+
+        self._aff._need_handshake = False
+        self.sync_cryptor_from_eff()
+
+        return new_iv
 
     def finish_handshake(self, new_iv):
         self._aff.finish_handshake(new_iv)
@@ -59,6 +70,10 @@ class FDXTCPConn():
     def update_cryptor(self, cryptor):
         self._aff.update_cryptor(cryptor)
         self._eff.update_cryptor(cryptor)
+
+    def update_iv(self, iv):
+        self._aff.update_iv(iv)
+        self._eff.update_iv(iv)
 
     def set_next_blk_size(self, blk_size):
         self._aff.set_next_blk_size(blk_size)

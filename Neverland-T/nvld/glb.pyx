@@ -50,6 +50,8 @@ class GLBInfo:
 
     config = None
 
+    max_iv_len = None  # the maximum length of IV among all ciphers
+
     stmc_div_list = None  # iv set for StreamCryptor
     dgmc_div_list = None  # iv set for DGramCryptor
 

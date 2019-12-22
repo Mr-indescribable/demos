@@ -95,9 +95,11 @@ class TCPPacketHelper():
         metadata, _ = GLBComponent.tcp_pkt_wrapper.parse_metadata(data)
         return metadata
 
+    # :param try_dcs: try to decrypt data with default cryptors
+    #                 should only be used in handshaking
     @classmethod
-    def identify_next_blk_len(cls, conn, handshaking=False):
-        if handshaking:
+    def identify_next_blk_len(cls, conn, try_dcs=False):
+        if try_dcs:
             metadata = None
 
             for metadata_b in conn.hs_metadata_iteration:
@@ -110,6 +112,10 @@ class TCPPacketHelper():
 
             if metadata is None:
                 raise InvalidPkt('Unable to parse metadata with DIV')
+
+            # manually choose default cryptor for efferent
+            conn.sync_cryptor_from_aff()
+            conn._eff._hs_dc_choosed = True
         else:
             metadata_b = conn.read_data(TCP_META_DATA_LEN)
             metadata = cls.parse_tcp_metadata(metadata_b)

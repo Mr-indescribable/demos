@@ -171,6 +171,14 @@ class NLSwirl():
         # A FIFO queue that contains all SN in self._pkt_cache
         self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
 
+        # template of handshake packets
+        self._hs_pktf_temp = {
+            TCPFieldNames.SN: 0,
+            TCPFieldNames.TYPE: PktTypes.IV_CTRL,
+            TCPFieldNames.DEST: ('0.0.0.0', 0),
+            TCPFieldNames.IV: None,
+        }
+
     def _has_pkts_to_send(self):
         return (
             len(self._missing_pkt) > 0 or
@@ -253,7 +261,7 @@ class NLSwirl():
             self._conn_map.update( {fd: conn} )
             self._fds.append(fd)
 
-            # poll with EPOLLOUT event will notice us that the connection
+            # polling with EPOLLOUT event will notice us that the connection
             # is ready, and then, we turn it to read only after we are noticed
             # (if there is no data to send)
             self._poller.register(fd, ev=self._evs_out, obj=self)
@@ -295,11 +303,10 @@ class NLSwirl():
             conn = self._conn_map.get(fd)
             self._conn_iv_map[fd] = new_iv
 
-            self._hs_pktf_temp.udpate(iv=new_iv)
-            iv_pkt = TCPPacket(fields=self._hs_pktf_temp)
-            TCPPacketHelper.wrap(iv_pkt)
-
-            self._io_helper.handle_send(conn, iv_pkt.data)
+            self._hs_pktf_temp.update(iv=new_iv)
+            ack_pkt = TCPPacket(fields=self._hs_pktf_temp)
+            TCPPacketHelper.wrap(ack_pkt)
+            self._io_helper.handle_send(conn, ack_pkt.data)
 
             try:
                 conn.update_iv(new_iv)
@@ -468,6 +475,10 @@ class NLSwirl():
 
     # event handler of EV_IN
     def handle_in(self, fd):
+        # try to decrypt data with default cryptors,
+        # see TCPPacketHelper.identify_next_blk_len for more details
+        try_dcs = False
+
         got_pkt = False
         accepting_handshake = False
         expecting_hs_ack = False
@@ -491,6 +502,7 @@ class NLSwirl():
                 state = NLSConnState.HANDSHAKING
                 self._conn_st_map[fd] = NLSConnState.HANDSHAKING
                 accepting_handshake = True
+                try_dcs = True
         elif state == NLSConnState.HANDSHAKING and self._is_initiator:
             expecting_hs_ack = True
         elif state == NLSConnState.DISCONNECTED:
@@ -516,9 +528,7 @@ class NLSwirl():
         if conn.next_blk_size is None:
             if conn.recv_buf_bts >= TCP_META_DATA_LEN:
                 try:
-                    TCPPacketHelper.identify_next_blk_len(
-                        conn, accepting_handshake
-                    )
+                    TCPPacketHelper.identify_next_blk_len(conn, try_dcs)
                 except InvalidPkt:
                     # This is not supposed to be happended.
                     # In this case, the only thing we can do is disconnecting.
