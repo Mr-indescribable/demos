@@ -12,6 +12,7 @@ from ..exceptions import (
     ConnectionLost,
     NotEnoughData,
     TryAgain,
+    TCPError,
     DecryptionFailed,
 )
 
@@ -120,6 +121,8 @@ class TCPAff():
     def _recv_nblking(self):
         try:
             data = self._sock.recv(TCP_MAX_RECV_SIZE)
+        except ConnectionResetError:
+            raise ConnectionLost('Connection reset by peer')
         except OSError as e:
             if errno_from_exception(e) in (errno.EAGAIN, errno.EWOULDBLOCK):
                 raise TryAgain()

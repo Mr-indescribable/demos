@@ -418,6 +418,8 @@ class NLSwirl():
             self._awake_conns()
 
     # makes connection with other node
+    #
+    # TODO: lazy connecting
     def build_channel(self):
         if not self._is_initiator:
             raise TypeError('wrong type of NLS')

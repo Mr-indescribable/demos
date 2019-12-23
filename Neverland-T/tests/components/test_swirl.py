@@ -254,7 +254,7 @@ def _get_new_poller_n_nls():
         poller,
         is_initiator=True,
         remote=(_ADDR, _PORT),
-        conn_num=1,
+        conn_num=4,
     )
 
     return poller, nls
