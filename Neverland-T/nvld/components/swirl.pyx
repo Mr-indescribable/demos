@@ -47,11 +47,22 @@ class NLSConnState(metaclass=MetaEnum):
     DISCONNECTED = 0x0f  # the connection is closed
 
 
+# The maximum of uncontinuous incoming packets we will store
+#
 # When the continuity of the sn is broken and the peer is still sending
 # packets without retransmitting the missing packet, we have to close the
 # channel. When this threshold is reached, some of NLSwirl's functionalities
 # is not working as expected.
 NLS_UNCONTINUOUS_SN_THRESHOLD = 64  # (packets)
+
+
+# The maximum of initial connection number.
+#
+# When we call the build_channel() method, NLSwirl should build the
+# channel with only a few connections in it but not fully build it.
+# And we will complete this construction of the channel while we are
+# using it. And this is the so called "lazy connecting".
+NLS_INITIAL_CONNECTION_NUM = 2
 
 
 # The swirl module of Neverland
@@ -200,9 +211,17 @@ class NLSwirl():
                 conn = self._conn_map.get(fd)
                 self._io_helper.set_ev_rw(conn)
 
+    # used by the lazy connecting logic
+    def _randomly_add_conn(self):
+        if random.randint(1, 6) >= 5:  # let's roll a dice :)
+            self._new_conn()
+
     def _awake_conns(self):
         if self._poller.get_w_fdn() <= self._awk_threshold:
             self._randomly_awake_conn()
+
+            if len(self._fds) < self._conn_num:
+                self._randomly_add_conn()
 
     def _next_sn(self):
         try:
@@ -418,13 +437,16 @@ class NLSwirl():
             self._awake_conns()
 
     # makes connection with other node
-    #
-    # TODO: lazy connecting
     def build_channel(self):
         if not self._is_initiator:
             raise TypeError('wrong type of NLS')
 
-        for _ in range(self._conn_num):
+        if self._conn_num < NLS_INITIAL_CONNECTION_NUM:
+            conn_num = self._conn_num
+        else:
+            conn_num = NLS_INITIAL_CONNECTION_NUM
+
+        for _ in range(conn_num):
             self._new_conn()
 
     # closes all connections within the channel
