@@ -270,14 +270,16 @@ def _wait_for_channel(nls, poller):
         for fd, ev in evs:
             nls.handle_ev(fd, ev)
 
-        ready = 0
+        conn_ready = 0
 
         for fd, st in nls._conn_st_map.items():
             if st == NLSConnState.READY:
-                ready += 1
+                conn_ready += 1
 
-        if ready == nls._conn_num:
+        if conn_ready == nls.initial_conn_num:
             return
+        elif conn_ready > nls.initial_conn_num:
+            raise Exception('too many connections established')
 
         polled += 1
 
@@ -312,7 +314,7 @@ def test_build_n_close(recver):
 
     fds = set()
 
-    assert len(nls._fds) == nls._conn_num
+    assert len(nls._fds) == nls.initial_conn_num
 
     for fd in nls._fds:
         assert fd not in fds

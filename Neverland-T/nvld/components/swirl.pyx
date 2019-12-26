@@ -62,7 +62,7 @@ NLS_UNCONTINUOUS_SN_THRESHOLD = 64  # (packets)
 # channel with only a few connections in it but not fully build it.
 # And we will complete this construction of the channel while we are
 # using it. And this is the so called "lazy connecting".
-NLS_INITIAL_CONNECTION_NUM = 2
+NLS_MAX_INITIAL_CONNECTION_NUM = 2
 
 
 # The swirl module of Neverland
@@ -441,12 +441,7 @@ class NLSwirl():
         if not self._is_initiator:
             raise TypeError('wrong type of NLS')
 
-        if self._conn_num < NLS_INITIAL_CONNECTION_NUM:
-            conn_num = self._conn_num
-        else:
-            conn_num = NLS_INITIAL_CONNECTION_NUM
-
-        for _ in range(conn_num):
+        for _ in range(self.initial_conn_num):
             self._new_conn()
 
     # closes all connections within the channel
@@ -740,6 +735,13 @@ class NLSwirl():
             return self._pkt_recv_buf.pop(0)
         else:
             raise TryAgain('no more packets')
+
+    @property
+    def initial_conn_num(self):
+        if self._conn_num < NLS_MAX_INITIAL_CONNECTION_NUM:
+            return self._conn_num
+        else:
+            return NLS_MAX_INITIAL_CONNECTION_NUM
 
     @property
     def conn_num(self):
