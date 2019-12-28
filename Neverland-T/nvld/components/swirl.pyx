@@ -174,7 +174,8 @@ class NLSwirl():
 
         # corresponds to the sn field in the header of the last
         # TCP packet appended into self._pkt_recv_buf
-        self._sn = 0
+        self._recv_sn = 0
+        self._send_sn = 0
 
         # A cache which holds a set of transmitted packets; {sn: pkt}
         self._pkt_cache = {}
@@ -223,14 +224,12 @@ class NLSwirl():
             if len(self._fds) < self._conn_num:
                 self._randomly_add_conn()
 
-    def _next_sn(self):
-        try:
-            return self._sn
-        finally:
-            self._sn += 1
+    def _next_send_sn(self):
+        self._send_sn += 1
+        return self._send_sn
 
     def _assign_sn(self, pkt):
-        pkt.fields.sn = self._next_sn()
+        pkt.fields.sn = self._next_send_sn()
 
     def _connect_remote(self):
         try:
@@ -328,7 +327,7 @@ class NLSwirl():
             self._io_helper.handle_send(conn, ack_pkt.data)
 
             try:
-                conn.update_iv(new_iv)
+                conn.finish_handshake(new_iv)
             except InvalidIV:
                 raise NLSHandShakeError('invalid IV')
 
@@ -401,21 +400,21 @@ class NLSwirl():
     # then some of functionalities of the NLSwirl is broken.
     def __shift_recvd_pkt(self):
         while self.__internal_recv_buf:
-            next_sn = self._sn + 1
+            next_sn = self._recv_sn + 1
 
             if next_sn in self.__internal_recv_buf:
                 pkt = self.__internal_recv_buf.pop(next_sn)
                 self._pkt_recv_buf.append(pkt)
-                self._sn = next_sn
+                self._recv_sn = next_sn
             else:
                 break
 
     def _buff_pkt(self, pkt):
         sn = pkt.fields.sn
 
-        if self._sn + 1 == sn:
+        if self._recv_sn + 1 == sn:
             self._pkt_recv_buf.append(pkt)
-            self._sn += 1
+            self._recv_sn += 1
         else:
             self.__internal_recv_buf.update( {sn: pkt} )
 
@@ -608,7 +607,7 @@ class NLSwirl():
             return
 
         # drop already received packet
-        if pkt.fields.sn <= self._sn:
+        if pkt.fields.sn <= self._recv_sn:
             return
 
         self._buff_pkt(pkt)

@@ -49,7 +49,7 @@ class _PacketHandlers():
 
     @classmethod
     def spec_pkt_only_handler(cls, recver, pkt):
-        if _spec_only_handler_failed:
+        if cls._spec_only_handler_failed:
             return
 
         exp_pkt = recver._expecting_pkt
@@ -62,7 +62,7 @@ class _PacketHandlers():
         assert pkt.proto == PktProto.TCP
 
         for k, v in pkt.fields:
-            exp_v = exp_pkt.fields.get(k)
+            exp_v = exp_pkt.fields.__getv__(k)
 
             if exp_v != v:
                 recver.fail()
@@ -163,7 +163,6 @@ class _NLSReceiver():
 
     @property
     def test_succeeded(self):
-        assert self._running == False
         return self._succeeded
 
 
@@ -320,10 +319,14 @@ def test_build_n_close(recver):
         assert fd not in fds
         fds.add(fd)
 
+        conn = nls._conn_map.get(fd)
         st = nls._conn_st_map.get(fd)
+
         assert st == NLSConnState.READY
         assert fd in nls._conn_map
         assert fd in nls._conn_lk_map
+        assert conn._aff._need_handshake is False
+        assert conn._eff._need_handshake is False
 
     nls.close_channel()
     assert len(nls._fds) == 0
@@ -335,7 +338,7 @@ def test_build_n_close(recver):
 
 @__with_glb_conf
 @__with_receiver(_PacketHandlers.spec_pkt_only_handler)
-def _test_send(recver):
+def test_send(recver):
     recver.ev_ready.wait()
     poller, nls = _get_new_poller_n_nls()
 
@@ -356,4 +359,5 @@ def _test_send(recver):
 
     _wait_for_sending(nls, poller, 8)
 
+    time.sleep(0.1)
     assert recver.test_succeeded

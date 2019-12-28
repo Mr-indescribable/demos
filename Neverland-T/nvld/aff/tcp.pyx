@@ -163,7 +163,10 @@ class TCPAff():
         if self._plain_mod:
             return self._raw_buf[:length]
         else:
-            return self._pln_buf[:length]
+            if self._need_handshake:
+                return self._raw_buf[:length]
+            else:
+                return self._pln_buf[:length]
 
     def __decrypt_hs_metadata(self, data, cryptor):
         self._cryptor = cryptor
