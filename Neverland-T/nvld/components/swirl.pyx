@@ -759,8 +759,16 @@ class NLSwirl():
         return self._conn_num
 
     @property
+    def avai_conn_num(self):
+        return self._avai_conns
+
+    @property
     def fds(self):
         return self._fds
+
+    @property
+    def avai_fds(self):
+        return self._avai_fds
 
     @property
     def pkts_to_read(self):

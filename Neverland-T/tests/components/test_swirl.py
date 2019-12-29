@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import random
 import threading
 
 from nvld.glb import GLBInfo, GLBComponent
@@ -357,7 +358,7 @@ def test_send(recver):
     recver.expect_pkt(pkt)
     nls.append_pkt(pkt)
 
-    _wait_for_sending(nls, poller, 4)
+    _wait_for_sending(nls, poller, 8)
 
     time.sleep(0.1)
     assert recver.test_succeeded
@@ -366,8 +367,10 @@ def test_send(recver):
 @__with_glb_conf
 @__with_receiver(_PacketHandlers.pkt_dropper)
 def test_lazy_conn(recver):
+    conn_num = 16
+
     recver.ev_ready.wait()
-    poller, nls = _get_new_poller_n_nls(16)
+    poller, nls = _get_new_poller_n_nls(conn_num)
 
     nls.build_channel()
     _wait_for_channel(nls, poller)
@@ -380,7 +383,63 @@ def test_lazy_conn(recver):
         TCPFieldNames.DEST: ('127.0.0.1', 12345),
     }
 
-    for _ in range(10000):
+    for _ in range(1000):
         pkt = TCPPacket(fields=pkt_fields)
         nls.append_pkt(pkt)
-        _wait_for_sending(nls, poller, 4)
+        _wait_for_sending(nls, poller, 8)
+
+    # connections will be established within the transmission
+    # 1000 packets must be enough for establishing 16 connections
+    assert len(nls._fds) == conn_num
+
+    nls.close_channel()
+    assert len(nls._fds) == 0
+
+
+@__with_glb_conf
+@__with_receiver(_PacketHandlers.pkt_dropper)
+def test_reconn(recver):
+    conn_num = 16
+    disconn_confirmed = False
+
+    recver.ev_ready.wait()
+    poller, nls = _get_new_poller_n_nls(conn_num)
+
+    nls.build_channel()
+    _wait_for_channel(nls, poller)
+
+    pkt_fields = {
+        TCPFieldNames.TYPE: PktTypes.DATA,
+        TCPFieldNames.FAKE: 0,
+        TCPFieldNames.CHANNEL_ID: 100,
+        TCPFieldNames.DATA: os.urandom(128),
+        TCPFieldNames.DEST: ('127.0.0.1', 12345),
+    }
+
+    for i in range(1000):
+        if i == 500:
+            # We can manually break 2 connections here and see if it will
+            # reconnect, but first, we need confirm all connections are ready.
+            assert recver._nls.avai_conn_num == conn_num
+
+            fd2rm = random.choice(recver._nls.avai_fds)
+            recver._nls._remove_conn_with_lock(fd2rm)
+        elif 500 < i < 540:
+            # confirm that we have one connection which is broken
+            if nls.avai_conn_num == conn_num - 1:
+                disconn_confirmed = True
+
+            pkt = TCPPacket(fields=pkt_fields)
+            nls.append_pkt(pkt)
+            _wait_for_sending(nls, poller, 8)
+
+            # costs 0.2 second
+            # time.sleep(0.0001)
+        elif i == 540:
+            # confirm that the connection has been reestablished
+            assert disconn_confirmed
+            assert nls.avai_conn_num == conn_num
+        else:
+            pkt = TCPPacket(fields=pkt_fields)
+            nls.append_pkt(pkt)
+            _wait_for_sending(nls, poller, 8)
