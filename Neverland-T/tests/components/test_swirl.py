@@ -443,3 +443,6 @@ def test_reconn(recver):
             pkt = TCPPacket(fields=pkt_fields)
             nls.append_pkt(pkt)
             _wait_for_sending(nls, poller, 8)
+
+
+# TODO: test missing packet retransmission
