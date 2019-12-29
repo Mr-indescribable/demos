@@ -247,13 +247,13 @@ def __with_receiver(pkt_handler_func):
     return decorator
 
 
-def _get_new_poller_n_nls():
+def _get_new_poller_n_nls(conn_num=4):
     poller = EpollPoller()
     nls = NLSwirl(
         poller,
         is_initiator=True,
         remote=(_ADDR, _PORT),
-        conn_num=4,
+        conn_num=conn_num,
     )
 
     return poller, nls
@@ -306,7 +306,7 @@ def _wait_for_sending(nls, poller, max_poll_times):
 @__with_receiver(_PacketHandlers.pkt_dropper)
 def test_build_n_close(recver):
     recver.ev_ready.wait()
-    poller, nls = _get_new_poller_n_nls()
+    poller, nls = _get_new_poller_n_nls(8)
 
     nls.build_channel()
     _wait_for_channel(nls, poller)
@@ -357,7 +357,30 @@ def test_send(recver):
     recver.expect_pkt(pkt)
     nls.append_pkt(pkt)
 
-    _wait_for_sending(nls, poller, 8)
+    _wait_for_sending(nls, poller, 4)
 
     time.sleep(0.1)
     assert recver.test_succeeded
+
+
+@__with_glb_conf
+@__with_receiver(_PacketHandlers.pkt_dropper)
+def test_lazy_conn(recver):
+    recver.ev_ready.wait()
+    poller, nls = _get_new_poller_n_nls(16)
+
+    nls.build_channel()
+    _wait_for_channel(nls, poller)
+
+    pkt_fields = {
+        TCPFieldNames.TYPE: PktTypes.DATA,
+        TCPFieldNames.FAKE: 0,
+        TCPFieldNames.CHANNEL_ID: 100,
+        TCPFieldNames.DATA: os.urandom(128),
+        TCPFieldNames.DEST: ('127.0.0.1', 12345),
+    }
+
+    for _ in range(10000):
+        pkt = TCPPacket(fields=pkt_fields)
+        nls.append_pkt(pkt)
+        _wait_for_sending(nls, poller, 4)

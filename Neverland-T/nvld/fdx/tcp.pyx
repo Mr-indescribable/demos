@@ -49,7 +49,7 @@ class FDXTCPConn():
 
     def finish_handshake(self, new_iv):
         self._aff.finish_handshake(new_iv)
-        self._eff.finish_handshake()
+        self._eff.finish_handshake(new_iv)
 
     @property
     def hs_metadata_iteration(self):

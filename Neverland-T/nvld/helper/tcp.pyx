@@ -154,17 +154,14 @@ class NonblockingTCPIOHelper():
 
         return bt_sent
 
-    def handle_send_ex(self, eff, data=b'', auto_modify_ev=True):
+    def handle_send_ex(self, eff, data=b'', auto_ro=True):
         bt_sent = eff.send(data)
 
-        if auto_modify_ev:
-            if eff.send_buf_bts == 0:
-                self.set_ev_ro(eff)
-                modified_to_ro = True
-            else:
-                self.set_ev_rw(eff)
-                modified_to_ro = False
+        if eff.send_buf_bts == 0 and auto_ro:
+            self.set_ev_ro(eff)
+            modified_to_ro = True
         else:
+            self.set_ev_rw(eff)
             modified_to_ro = False
 
         return bt_sent, modified_to_ro

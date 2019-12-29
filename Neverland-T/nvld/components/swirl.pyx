@@ -225,11 +225,13 @@ class NLSwirl():
                 self._randomly_add_conn()
 
     def _next_send_sn(self):
+        sn = self._send_sn + 1
         self._send_sn += 1
-        return self._send_sn
+        return sn
 
     def _assign_sn(self, pkt):
-        pkt.fields.sn = self._next_send_sn()
+        sn = self._next_send_sn()
+        pkt.fields.sn = sn
 
     def _connect_remote(self):
         try:
@@ -324,12 +326,13 @@ class NLSwirl():
             self._hs_pktf_temp.update(iv=new_iv)
             ack_pkt = TCPPacket(fields=self._hs_pktf_temp)
             TCPPacketHelper.wrap(ack_pkt)
-            self._io_helper.handle_send(conn, ack_pkt.data)
 
             try:
                 conn.finish_handshake(new_iv)
             except InvalidIV:
                 raise NLSHandShakeError('invalid IV')
+
+            self._io_helper.handle_send(conn, ack_pkt.data)
 
             # After this, we can safely declare that the connection is ready no
             # matter if the packet has been completely sent to the other side.
@@ -343,7 +346,7 @@ class NLSwirl():
     #
     # the pkt should be validated by the invoker,
     # and type of the packet must be IV_CTRL.
-    def _finish_handshake(self, fd, pkt):
+    def _accept_hs_ack(self, fd, pkt):
         ack_iv = pkt.fields.iv
         iv = self._conn_iv_map.get(fd)
 
@@ -497,8 +500,7 @@ class NLSwirl():
         # see TCPPacketHelper.identify_next_blk_len for more details
         try_dcs = False
 
-        got_pkt = False
-        accepting_handshake = False
+        accepting_hs = False
         expecting_hs_ack = False
         conn = self._conn_map.get(fd)
         state = self._conn_st_map.get(fd)
@@ -519,7 +521,7 @@ class NLSwirl():
             else:
                 state = NLSConnState.HANDSHAKING
                 self._conn_st_map[fd] = NLSConnState.HANDSHAKING
-                accepting_handshake = True
+                accepting_hs = True
                 try_dcs = True
         elif state == NLSConnState.HANDSHAKING and self._is_initiator:
             expecting_hs_ack = True
@@ -543,6 +545,21 @@ class NLSwirl():
         except DecryptionFailed:
             self._on_remote_error()
 
+        if not accepting_hs and not expecting_hs_ack:
+            while conn.recv_buf_bts >= TCP_META_DATA_LEN:
+                try:
+                    self._handle_in_data(fd, conn, False, False, False)
+                except TryAgain:
+                    break
+        else:
+            self._handle_in_data(
+                fd, conn, try_dcs,
+                accepting_hs, expecting_hs_ack
+            )
+
+    def _handle_in_data(self, fd, conn, try_dcs, accepting_hs, expecting_hs_ack):
+        got_pkt = False
+
         if conn.next_blk_size is None:
             if conn.recv_buf_bts >= TCP_META_DATA_LEN:
                 try:
@@ -554,19 +571,13 @@ class NLSwirl():
                 else:
                     # try to get next packet, the helper will help in
                     # checking if we have sufficient data
-                    try:
-                        pkt_bt = TCPPacketHelper.pop_packet(conn)
-                        got_pkt = True
-                    except TryAgain:
-                        return
+                    pkt_bt = TCPPacketHelper.pop_packet(conn)
+                    got_pkt = True
             else:
                 return
         else:
-            try:
-                pkt_bt = self._io_helper.handle_recv(conn)
-                got_pkt = True
-            except TryAgain:
-                return
+            pkt_bt = self._io_helper.handle_recv(conn)
+            got_pkt = True
 
         if not got_pkt:
             return
@@ -581,14 +592,14 @@ class NLSwirl():
         #
         # in this case, the first packet must be an IV_CTRL packet,
         # otherwise, the remote node is not working properly.
-        if accepting_handshake or expecting_hs_ack:
+        if accepting_hs or expecting_hs_ack:
             if pkt.fields.type != PktTypes.IV_CTRL:
                 logger.error(
                     f'remote node {self._rmt_addr} didn\'t perform a handshake'
                 )
                 self._on_remote_error()
 
-        if accepting_handshake:
+        if accepting_hs:
             try:
                 self._accept_handshake(fd, pkt)
             except NLSHandShakeError:
@@ -597,7 +608,7 @@ class NLSwirl():
 
         if expecting_hs_ack:
             try:
-                self._finish_handshake(fd, pkt)
+                self._accept_hs_ack(fd, pkt)
             except NLSHandShakeError:
                 self._on_remote_error()
             return
@@ -637,7 +648,8 @@ class NLSwirl():
 
             return  # We cannot do anything before the handshake is done
         elif state == NLSConnState.HANDSHAKING:
-            pass
+            if self._is_initiator:
+                return
         elif state == NLSConnState.DISCONNECTED:
             return
         elif state != NLSConnState.READY:
@@ -672,8 +684,8 @@ class NLSwirl():
 
         # the helper will help us to do the event-changing job
         # if there is no data to send
-        auto_modify_ev = not self._has_pkts_to_send()
-        self._io_helper.handle_send_ex(conn, auto_modify_ev=auto_modify_ev)
+        auto_ro = not self._has_pkts_to_send()
+        self._io_helper.handle_send_ex(conn, auto_ro=auto_ro)
 
     # event hander of EV_RDHUP
     #

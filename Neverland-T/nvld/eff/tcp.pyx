@@ -39,7 +39,7 @@ class TCPEff():
         self._new_iv = None
         self._handshaked = False
         self._need_handshake = False if dnt_hs else not self._plain_mod
-        self._hs_dc_choosed = False
+        self._handshake_initiated = False
 
         # self._traiffic_*: variables for the statistics of traffic
         self._traffic_total = 0
@@ -73,6 +73,11 @@ class TCPEff():
         if not self._need_handshake:
             raise RuntimeError('doesn\'t need handshake')
 
+        if self._handshake_initiated:
+            raise RuntimeError('handshake already initiated')
+
+        self._handshake_initiated = True
+
         self._new_iv = os.urandom(GLBInfo.max_iv_len)
         while self._new_iv in GLBInfo.stmc_div_list:
             self._new_iv = os.urandom(GLBInfo.max_iv_len)
@@ -83,23 +88,28 @@ class TCPEff():
         TCPPacketHelper.wrap(iv_pkt)
 
         # This could be uncompleted in non-blocking mode,
-        # so the invoker should keep the poller running until
+        # so the caller should keep the poller running until
         # the transmission is over.
         self.send(iv_pkt.data)
 
-        # The method returns the new_iv to the invoker,
-        # the invoker should check the ACK and determine
+        # The ACK should be encrypted with the new IV
+        self.update_iv(self._new_iv)
+
+        # The method returns the new_iv to the caller,
+        # the caller should check the ACK and determine
         # whether the handshake is finished. Once the handshake
-        # is done, finish_handshake() should be invoked.
+        # is done, finish_handshake() should be called.
         return self._new_iv
 
-    def finish_handshake(self):
+    def finish_handshake(self, new_iv):
         if not self._need_handshake:
             raise RuntimeError('doesn\'t need handshake')
 
+        if not self._handshake_initiated:
+            self.update_iv(new_iv)
+
         self._handshaked = True
         self._need_handshake = False
-        self.update_iv(self._new_iv)
 
     def _update_traffic_sum(self, data_len):
         self._traffic_total += data_len
@@ -180,13 +190,16 @@ class TCPEff():
             # while we are performing a handshake, ensure that the handshake
             # packet is passed in in one piece.
             if self._need_handshake:
-                if not self._hs_dc_choosed:
-                    self._cryptor = CryptoHelper.random_defaul_stmc()
-                    self._hs_dc_choosed = True
+                # On the receiver side, the caller must finish the handshake
+                # first, otherwise, the behavior of send() will be incorrect.
+                if not self._handshake_initiated:
+                    raise RuntimeError('efferent state error')
 
-                self._cryptor.reset()
-                pending = self._cryptor.encrypt(data)
-                self._cryptor.reset()
+                cryptor = CryptoHelper.random_defaul_stmc()
+
+                cryptor.reset()
+                pending = cryptor.encrypt(data)
+                cryptor.reset()
             else:
                 pending = self._cryptor.encrypt(data)
 
