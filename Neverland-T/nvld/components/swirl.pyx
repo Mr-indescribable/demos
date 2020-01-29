@@ -177,8 +177,12 @@ class NLSwirl():
         self._recv_sn = 0
         self._send_sn = 0
 
-        # A cache which holds a set of transmitted packets; {sn: pkt}
+        # A cache that holds a set of transmitted packets; {sn: pkt}
         self._pkt_cache = {}
+
+        # A cache that holds a set of lists that records
+        # packets through a connection; {fd: [sn...]}
+        self._conn_sn_cache = {}
 
         # A FIFO queue that contains all SN in self._pkt_cache
         self._pkt_cache_sn_fifo = NLFifo(maxlen=self._cache_size)
@@ -270,6 +274,9 @@ class NLSwirl():
 
             if fd in self._conn_iv_map:
                 self._conn_iv_map.pop(fd)
+
+            if fd in self._conn_sn_cache:
+                self._conn_sn_cache.pop(fd)
 
     def _add_conn(self, conn, state):
         fd = conn.fd
@@ -367,12 +374,6 @@ class NLSwirl():
         self._conn_retried = 0
         self._conn_st_map[fd] = NLSConnState.CONNECTED
 
-    # def _on_ready(self, fd):
-        # self._conn_st_map[fd] = NLSConnState.READY
-        # if not self._ready_ev_triggered:
-            # self._ready_ev_triggered = True
-            # self._ready_ev.trigger()
-
     # when the remote node sends something incorrect
     def _on_remote_error(self):
         self.close_channel()
@@ -385,6 +386,11 @@ class NLSwirl():
         with lock:
             self._conn_ct_map[fd] = pkt
             self._io_helper.append_pkt(conn, pkt)
+
+        if fd not in self._conn_sn_cache:
+            self._conn_sn_cache[fd] = []
+
+        self._conn_sn_cache[fd].append(pkt.fields.sn)
 
     # Move packet in self.__shift_recvd_pkt into self._pkt_recv_buf
     # and sort them by the sn field.
